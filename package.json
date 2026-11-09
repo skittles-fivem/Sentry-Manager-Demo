@@ -1,0 +1,10 @@
+{
+  "name": "sentry-manager-demo",
+  "version": "1.0.0",
+  "description": "Sentry Six Manager in demo mode: no sign-in, read-only, highway-only demo drives",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

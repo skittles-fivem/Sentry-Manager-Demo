@@ -1,0 +1,89 @@
+name: Demo image
+
+# Builds ghcr.io/skittles-fivem/sentry-manager-demo on top of the newest
+# Sentry Six Manager image: on every push to main, every night (so the demo
+# follows the manager's releases), and by hand.
+#
+# The demo drives come from the "seed" release's seed.tar (made with
+# tools/sanitize.js and uploaded by hand: README, "Updating the drives").
+# Without one, the image gets synthetic test footage so it still builds.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Policy tests
+        run: npm test
+
+      - name: Demo drives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release download seed --pattern seed.tar --dir . --repo "$GITHUB_REPOSITORY" 2>/dev/null; then
+            tar -xf seed.tar -C seed
+            echo "SEED=release" >> "$GITHUB_ENV"
+          else
+            echo "No seed release: synthetic test footage"
+            sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
+            git clone --depth 1 https://github.com/skittles-fivem/Sentry-Manager manager
+            node tools/synthetic.js manager seed/footage/demo-car 4
+            echo "SEED=synthetic" >> "$GITHUB_ENV"
+          fi
+          rm -f seed/report.private.json
+          du -sh seed
+
+      - name: Build
+        run: |
+          docker pull ghcr.io/skittles-fivem/sentry-manager:latest
+          MANAGER=$(docker run --rm --entrypoint cat ghcr.io/skittles-fivem/sentry-manager:latest /app/BUILD_INFO.json | node -pe 'JSON.parse(require("fs").readFileSync(0)).sha.slice(0,7)' || echo unknown)
+          echo "MANAGER=$MANAGER" >> "$GITHUB_ENV"
+          docker build -t demo:test .
+
+      - name: Smoke test
+        run: |
+          docker run -d --name demo -p 9000:9000 --read-only --user 1000:1000 --cap-drop ALL \
+            --tmpfs /data:uid=1000,gid=1000 --tmpfs /footage:uid=1000,gid=1000 -e DEMO_CONVERT=off demo:test
+          for i in $(seq 1 90); do docker logs demo 2>&1 | grep -q '\[demo\] ready' && break; sleep 2; done
+          docker logs demo 2>&1 | grep '\[demo\]'
+          docker logs demo 2>&1 | grep -q '\[demo\] ready'
+          if docker logs demo 2>&1 | grep -q 'setting up the demo failed'; then exit 1; fi
+          H='-sk -H X-Requested-With:sentry-six-manager -H Content-Type:application/json'
+          # signed in without a password
+          curl $H https://localhost:9000/api/auth/me | grep -q '"user":"demo"'
+          # a vehicle with recordings
+          curl $H https://localhost:9000/api/vehicles | grep -q '"healthy":true'
+          # changes refused
+          test "$(curl $H -o /dev/null -w '%{http_code}' -X POST -d '{}' https://localhost:9000/api/bin/empty)" = 403
+          test "$(curl $H -o /dev/null -w '%{http_code}' -X POST -d '{"name":"x"}' https://localhost:9000/api/vehicles)" = 403
+          test "$(curl $H -o /dev/null -w '%{http_code}' -X POST -d '{}' https://localhost:9000/api/converter/invoke/start)" = 403
+          # the demo note on the page
+          curl -sk https://localhost:9000/ | grep -q '/demo/banner.js'
+          docker rm -f demo
+
+      - name: Publish
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          IMG=ghcr.io/skittles-fivem/sentry-manager-demo
+          docker tag demo:test $IMG:latest
+          docker tag demo:test $IMG:manager-$MANAGER
+          docker push $IMG:latest
+          docker push $IMG:manager-$MANAGER
+          echo "Published $IMG:latest (manager $MANAGER, drives: $SEED)" >> "$GITHUB_STEP_SUMMARY"

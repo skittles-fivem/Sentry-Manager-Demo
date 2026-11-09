@@ -1,0 +1,41 @@
+# Sentry Six Manager demo: the real app, no sign-in, nothing can be changed,
+# highway-only demo drives. Everything resets every 24 hours (and on restart).
+#
+#   docker compose up -d
+#   open https://<server>:9000  (one-time certificate warning)
+#
+# Behind a reverse proxy that does HTTPS (Caddy, Traefik, nginx, Cloudflare
+# Tunnel), point it at https://<this host>:9000 and skip certificate checks
+# for that hop, or set TLS_MODE=off and TRUST_PROXY=1 and point it at
+# http://<this host>:9000. See README.md.
+
+services:
+  sentry-manager-demo:
+    image: ghcr.io/skittles-fivem/sentry-manager-demo:latest
+    container_name: sentry-manager-demo
+    hostname: demo
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      TZ: America/Chicago
+      # hours between resets; the app starts over with fresh demo data
+      DEMO_RESET_HOURS: "24"
+      # exports waiting or rendering at once, for all visitors together
+      DEMO_EXPORT_QUEUE: "2"
+      # a real H.265 conversion of the demo footage after each reset (off: none)
+      DEMO_CONVERT: "on"
+    # Nothing is kept: data and footage live in memory and start fresh.
+    tmpfs:
+      - /data:uid=1000,gid=1000,size=2g
+      - /footage:uid=1000,gid=1000,size=8g
+    # A public box: no privileges at all, a read-only image, bounded use.
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 3g
+    cpus: 2
