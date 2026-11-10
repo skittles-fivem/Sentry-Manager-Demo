@@ -23,8 +23,8 @@ services:
       DEMO_RESET_HOURS: "24"
       # exports waiting or rendering at once, for all visitors together
       DEMO_EXPORT_QUEUE: "2"
-      # a real H.265 conversion of the demo footage after each reset (off: none)
-      DEMO_CONVERT: "on"
+      # the Encoder's pretend conversion over this server and two nodes (off: none)
+      DEMO_FAKE_ENCODER: "on"
     # Nothing is kept: data and footage live in memory and start fresh.
     tmpfs:
       - /data:uid=1000,gid=1000,size=2g

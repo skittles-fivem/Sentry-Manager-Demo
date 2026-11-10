@@ -143,6 +143,28 @@ function withBanner(req, res, handler) {
   return handler(req, res);
 }
 
+// ---- the pretend conversion with nodes (demo/fakeEncoder.js)
+const { createFakeEncoder } = require('./fakeEncoder');
+const { call } = require('./internalClient');
+const FAKE_ENCODER = String(process.env.DEMO_FAKE_ENCODER || 'on').toLowerCase() !== 'off';
+let fake = null;
+const realJson = (pathAndQuery) => call(listenPort, INTERNAL, 'GET', pathAndQuery);
+async function fakeAnswer(req, res, p, url) {
+  const m = req.method;
+  if (m === 'GET' && p === '/api/converter/events') { fake.attach(req, res); return true; }
+  if (m === 'POST' && p === '/api/converter/invoke/getCurrent') { req.resume(); json(res, 200, fake.current()); return true; }
+  if (m === 'POST' && p === '/api/converter/invoke/devices') { req.resume(); json(res, 200, fake.devices()); return true; }
+  if (m === 'POST' && /^\/api\/converter\/invoke\/(subscribeProgress|unsubscribeProgress)$/.test(p)) { req.resume(); json(res, 200, { ok: true, value: null }); return true; }
+  try {
+    if (m === 'GET' && p === '/api/stats') { json(res, 200, fake.patchStats(await realJson(`${p}${url.search}`))); return true; }
+    if (m === 'GET' && p === '/api/jobs') { json(res, 200, fake.patchJobs(await realJson(`${p}${url.search}`))); return true; }
+    if (m === 'GET' && p === '/api/nodes') { json(res, 200, fake.nodesOverview((await realJson(p))?.worker || null)); return true; }
+  } catch (err) {
+    say(`pretend answer for ${p}: ${err.message}`);
+  }
+  return false;
+}
+
 function gate(handler) {
   return async function demoGate(req, res) {
     let url;
@@ -158,6 +180,11 @@ function gate(handler) {
     if (p === '/login' || p === '/login/code') {
       res.writeHead(302, { Location: '/', 'Cache-Control': 'no-store' });
       return res.end();
+    }
+    // the pretend conversion and nodes (demo/fakeEncoder.js) answer these
+    if (fake && !internalReq(req)) {
+      const answered = await fakeAnswer(req, res, p, url);
+      if (answered) return undefined;
     }
     if (p.startsWith('/api/') && !internalReq(req)) {
       // the CAN Bridge's upload API takes its own token: never on the demo
@@ -213,7 +240,14 @@ const waitForPort = () => new Promise((resolve) => {
   tryOnce();
 });
 waitForPort().then(() => seed({ port: listenPort, token: INTERNAL, seedDir: SEED, footage: FOOTAGE, log: say }))
-  .then(() => say('ready'))
+  .then((cars) => {
+    const car = cars?.[0];
+    if (FAKE_ENCODER && car) {
+      fake = createFakeEncoder({ sourceRoot: car.studioRoot || path.join(FOOTAGE, car.id, 'TeslaCam'), vehicleId: car.id, vehicleName: car.name });
+      say('pretend conversion on this server and two nodes started');
+    }
+    say('ready');
+  })
   .catch((err) => say(`setting up the demo failed: ${err.stack || err.message}`));
 
 // ---- start over every so often (the supervisor starts the app again)

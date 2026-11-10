@@ -4,7 +4,7 @@
 real app, in demo mode: no sign-in, nothing can be changed, and real Tesla
 drives that are **highway driving only**. Anyone can open it and try every
 page: the six-camera Viewer with telemetry and the map, Footage, Drives, the
-Encoder running a real conversion, Jobs, Policies, Recycle Bin, Health and
+Encoder converting across nodes, Jobs, Policies, Recycle Bin, Health and
 Settings.
 
 It is the published manager image with a small layer on top (`demo/`). The
@@ -40,9 +40,22 @@ through the app's API on `localhost`.
 
 | | |
 | --- | --- |
-| Can | Browse every page; play footage; scrub; see telemetry, the map and CAN data; read Drives, Moments and stats; watch the Encoder; make an export and download it (at most 2 waiting or rendering at once, for everyone) |
+| Can | Browse every page; play footage; scrub; see telemetry, the map and CAN data; read Drives, Moments and stats; watch the Encoder and Nodes at work; make an export and download it (at most 2 waiting or rendering at once, for everyone) |
 | Cannot | Delete, move, protect, trash or restore anything; start, pause or cancel conversions; change any setting, vehicle, policy, place or account; upload an interface; turn on CAN uploads; sign out |
-| Never shown | The server's logs, sessions, certificates, nodes and CAN tokens (empty stand-ins), and the setup code (there is none) |
+| Never shown | The server's logs, sessions, certificates and CAN tokens (empty stand-ins), and the setup code (there is none) |
+
+### The conversion on the Encoder page is pretend
+
+So visitors see a whole archive converting the way it does at home, the
+Encoder runs a pretend H.265 job ([`demo/fakeEncoder.js`](demo/fakeEncoder.js)):
+720 clips, spread over this server's GPU (an RTX 4070, 6 at once) and two
+paired nodes, a **Garage PC** (RTX 3060, 4 at once) and an **Office NAS**
+(Intel Arc A380, 3 at once). It moves in real time: clips finish, space
+saved and energy add up, the Hardware panel shows every GPU and each
+server's power, the Nodes page shows both nodes online and busy, and Jobs
+lists it with two earlier runs. It takes about 45 minutes, shows its summary
+for three minutes, and starts again. Nothing is encoded and no node exists:
+the demo answers those pages' requests itself, in the shapes the app uses.
 
 Anything not on the allowed list in [`demo/policy.js`](demo/policy.js) is
 refused, so a new feature in the manager that changes something stays off in
@@ -59,7 +72,10 @@ footage folder by mistake, it refuses to start instead.
 | --- | --- | --- |
 | `DEMO_RESET_HOURS` | `24` | Hours between fresh starts (`0`: only on restart) |
 | `DEMO_EXPORT_QUEUE` | `2` | Exports waiting or rendering at once, for all visitors |
-| `DEMO_CONVERT` | `on` | A real H.265 conversion of the demo footage after each reset (`off`: none) |
+| `DEMO_FAKE_ENCODER` | `on` | The pretend conversion with nodes (`off`: the Encoder shows the real server) |
+| `DEMO_FAKE_CLIPS` | `720` | Clips in each pretend job |
+| `DEMO_FAKE_MINUTES` | `45` | How long a pretend job takes |
+| `DEMO_CONVERT` | `off` | A real H.265 conversion of the demo footage after each reset (default `on` when the pretend one is off) |
 | `DEMO_CONVERT_PARALLEL` | `1` | Clips that conversion encodes at once |
 
 Every [manager setting](https://github.com/skittles-fivem/Sentry-Manager/blob/main/docs/settings.md)
@@ -151,7 +167,8 @@ python3 tools/screens.py https://localhost:9000 shots/   # every page, desktop a
 | --- | --- |
 | `demo/preload.js` | Loaded into the app (`NODE_OPTIONS`): signs everyone in as `demo`, puts the gate in front of the app, starts fresh, resets |
 | `demo/policy.js` | What a visitor may do |
-| `demo/seed.js`, `demo/seedCan.js` | Adds the vehicle, scans, starts a conversion and uploads the CAN data, all through the app's own API |
+| `demo/seed.js`, `demo/seedCan.js` | Adds the vehicle, scans and uploads the CAN data, all through the app's own API |
+| `demo/fakeEncoder.js` | The pretend conversion and nodes |
 | `demo/banner.*` | The demo note on the pages |
 | `tools/sanitize.js` | Real drives to highway-only demo drives |
 | `tools/blur/` | Plate blurring (`blur.py`), telemetry and timing put back (`transplant.js`), the tools image (`Dockerfile`) |

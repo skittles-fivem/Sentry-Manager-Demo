@@ -79,7 +79,9 @@ async function seed({ port, token, seedDir, footage, log }) {
   // telemetry kept), so the Encoder shows a job and Overview shows space
   // saved. It runs in the background at one clip at a time; DEMO_CONVERT=off
   // skips it.
-  if (String(process.env.DEMO_CONVERT || 'on').toLowerCase() !== 'off') {
+  // (with the pretend conversion on, the real one is off unless asked for)
+  const fake = String(process.env.DEMO_FAKE_ENCODER || 'on').toLowerCase() !== 'off';
+  if (String(process.env.DEMO_CONVERT || (fake ? 'off' : 'on')).toLowerCase() !== 'off') {
     for (const v of added) {
       const studioRoot = (await api('GET', '/api/vehicles')).vehicles.find((x) => x.id === v.id)?.studioRoot;
       if (!studioRoot) continue;
@@ -102,6 +104,8 @@ async function seed({ port, token, seedDir, footage, log }) {
       log(`CAN data: ${err.message}`);
     }
   }
+  const { vehicles } = await api('GET', '/api/vehicles');
+  return added.map((v) => vehicles.find((x) => x.id === v.id) || v);
 }
 
 module.exports = { seed, waitForJob };

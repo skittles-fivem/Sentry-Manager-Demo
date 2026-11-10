@@ -2,7 +2,7 @@
 """Screenshots of every page of a running demo, desktop and phone, plus the
 page errors each one logged. Used to check the demo after a change.
 
-    python3 tools/screens.py https://localhost:9000 out/
+    python3 tools/screens.py https://localhost:9000 out/ [page ...]
 """
 import json
 import sys
@@ -13,8 +13,10 @@ from playwright.sync_api import sync_playwright
 BASE = sys.argv[1].rstrip('/')
 OUT = Path(sys.argv[2])
 OUT.mkdir(parents=True, exist_ok=True)
-PAGES = ['overview', 'footage', 'viewer', 'drives', 'encoder', 'jobs', 'bin', 'policies', 'health', 'notifications', 'settings', 'account']
+PAGES = sys.argv[3:] or ['overview', 'footage', 'viewer', 'drives', 'encoder', 'jobs', 'bin', 'policies', 'health',
+                         'notifications', 'settings', 'settings/nodes', 'account']
 SIZES = {'desktop': {'width': 1440, 'height': 900}, 'phone': {'width': 393, 'height': 852}}
+SLOW = {'viewer': 6000, 'encoder': 8000}
 
 report = {}
 with sync_playwright() as p:
@@ -31,8 +33,8 @@ with sync_playwright() as p:
         for name in PAGES:
             errors.clear()
             page.goto(f'{BASE}/#/{name}', wait_until='load')
-            page.wait_for_timeout(6000 if name == 'viewer' else 3000)
-            page.screenshot(path=str(OUT / f'{size}-{name}.png'))
+            page.wait_for_timeout(SLOW.get(name, 3000))
+            page.screenshot(path=str(OUT / f"{size}-{name.replace('/', '-')}.png"))
             report[f'{size}-{name}'] = list(errors)
         ctx.close()
     browser.close()
