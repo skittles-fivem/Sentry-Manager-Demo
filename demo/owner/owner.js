@@ -186,105 +186,6 @@
       el('div', { class: 'timeline' }, el('h4', {}, `Timeline (last ${v.events} events, newest first)`), list)));
   }
 
-  // ---- footage import
-  function renderImport(s) {
-    const up = s.upload || {};
-    const mount = s.mount || {};
-    kv($('imp-state'), [
-      ['Uploaded', `${up.clips || 0} clips, ${up.logs || 0} CAN logs, ${gb(up.bytes)}${up.partial ? ` (${up.partial} unfinished: choose the folder again to resume)` : ''}`],
-      ['/demo-import', mount.present ? `${mount.clips} clips, ${mount.logs} CAN logs (read-only)` : 'not mounted'],
-      ['Free on /demo-state', gb(s.free)],
-      ['The demo shows', s.seed.active === 'imported' ? `your footage: ${s.seed.minutes} minutes${s.seed.blurred ? '' : ', plates NOT blurred'} (published ${when(s.seed.at)})` : 'the built-in drives'],
-      ['Places kept out', s.avoidSaved ? `${s.avoidSaved} saved` : 'none besides the drives\' own stops']
-    ]);
-    const j = s.job || {};
-    if (j.state && j.state !== 'idle') {
-      $('job-out').hidden = false;
-      $('job-out').textContent = `${j.state === 'running' ? 'Sanitizing…' : j.state === 'done' ? `Done: ${j.kept} highway minutes.` : `Failed: ${j.error}`}\n${(j.lines || []).join('\n')}`;
-    }
-    $('process').disabled = j.state === 'running';
-    const p = s.pending || {};
-    const box = $('pending');
-    if (!p.exists) {
-      box.replaceChildren(...[el('p', { class: 'muted small' }, 'Nothing sanitized yet.'),
-        s.seed.active === 'imported' ? el('div', { class: 'actions' }, el('button', { class: 'btn sm ghost', type: 'button', on: { click: () => act('/api/owner/import/unpublish', {}, 'Back to the built-in drives from the next reset.') } }, 'Use the built-in drives again')) : null].filter(Boolean));
-      return;
-    }
-    const b = p.blur || {};
-    const blurLine = p.blurred
-      ? el('p', {}, b.done ? `License plates blurred: all ${b.total} clips re-encoded since sanitizing.` : 'Blurred before upload (your word).')
-      : el('p', { class: 'warn' }, `License plates are not blurred${b.changed ? ` (${b.changed} of ${b.total} clips re-encoded so far)` : ''}.`);
-    const tick = el('input', { type: 'checkbox', id: 'as-is' });
-    const cmd = (text) => el('div', { class: 'cmd' }, el('code', {}, text), el('button', { class: 'btn sm ghost', type: 'button', on: { click: () => navigator.clipboard?.writeText(text) } }, 'Copy'));
-    box.replaceChildren(...[
-      el('p', {}, `${p.minutes} highway minutes ready (sanitized ${when(p.at)}).`),
-      blurLine,
-      p.blurred ? null : el('div', {},
-        el('p', { class: 'small' }, 'To blur them on the server first (the tools image, built once from this repo; several minutes per minute of footage), then come back here and publish:'),
-        cmd(s.buildTools), cmd(s.blurCommand),
-        el('p', { class: 'muted small' }, 'Or blur the folder on your computer (README, "Updating the drives"), tick "blurred before I uploaded it", and upload it again.'),
-        el('label', { class: 'check' }, tick, ' Publish as is, with license plates not blurred')),
-      el('div', { class: 'actions' },
-        el('button', { class: 'btn sm solid', type: 'button', on: { click: () => act('/api/owner/import/publish', { unblurred: p.blurred ? false : tick.checked }, 'Published: the demo shows it from the next reset (Reset now).') } }, 'Publish'),
-        el('button', { class: 'btn sm ghost', type: 'button', on: { click: () => act('/api/owner/import/discard', { what: 'pending' }, 'Discarded.') } }, 'Discard'),
-        s.seed.active === 'imported' ? el('button', { class: 'btn sm ghost', type: 'button', on: { click: () => act('/api/owner/import/unpublish', {}, 'Back to the built-in drives from the next reset.') } }, 'Use the built-in drives again') : null),
-      el('p', { class: 'small', id: 'pub-note', 'aria-live': 'polite' })].filter(Boolean));
-  }
-  async function act(url, body, done) {
-    try {
-      await call('POST', url, body);
-      loadImport().then(() => { const n = $('pub-note') || $('up-note'); if (n) n.textContent = done; });
-    } catch (err) {
-      const n = $('pub-note') || $('up-note');
-      if (n) n.textContent = err.message;
-    }
-  }
-
-  /** The folder's path for a picked file: from footage/ or can_logs/ on (the top folder's name dropped). */
-  function relOf(file) {
-    const parts = String(file.webkitRelativePath || file.name).split('/');
-    const at = parts.findIndex((x) => x === 'footage' || x === 'can_logs');
-    return at >= 0 ? parts.slice(at).join('/') : parts[parts.length - 1];
-  }
-  const NEVER = /^(README\.txt|highway_stretches\.csv)$/i;
-  async function upload(files) {
-    const note = $('up-note');
-    const bar = $('up-bar');
-    const picked = [...files].map((f) => ({ f, rel: relOf(f) }));
-    const skipped = picked.filter((x) => NEVER.test(x.rel)).map((x) => x.rel);
-    const wanted = picked.filter((x) => !NEVER.test(x.rel));
-    let plan;
-    try {
-      plan = await call('POST', '/api/owner/import/plan', { files: wanted.map((x) => ({ path: x.rel, size: x.f.size })) });
-    } catch (err) { note.textContent = err.message; return; }
-    const byPath = new Map(wanted.map((x) => [x.rel, x.f]));
-    const total = plan.files.reduce((n, f) => n + f.size, 0) || 1;
-    let done = plan.files.reduce((n, f) => n + f.have, 0);
-    const extra = [skipped.length ? `${skipped.join(', ')} not uploaded (never: they name places)` : '', plan.refused.length ? `${plan.refused.length} other files not part of the folder` : ''].filter(Boolean).join('; ');
-    if (plan.free != null && plan.need > plan.free) { note.textContent = `Not enough free disk on the server: ${gb(plan.need)} needed, ${gb(plan.free)} free.`; return; }
-    bar.hidden = false;
-    const show = (msg) => { bar.firstElementChild.style.width = `${Math.round((done / total) * 100)}%`; note.textContent = `${msg} ${gb(done)} of ${gb(total)}.${extra ? ` ${extra}.` : ''}`; };
-    for (const f of plan.files) {
-      let have = f.have;
-      const file = byPath.get(f.path);
-      while (have < f.size) {
-        const slice = file.slice(have, Math.min(f.size, have + 8 * 1024 * 1024));
-        try {
-          const r = await call('PUT', `/api/owner/import/chunk?path=${encodeURIComponent(f.path)}&offset=${have}&size=${f.size}`, null, slice);
-          done += r.have - have;
-          have = r.have;
-        } catch (err) {
-          if (err.status === 409 && Number.isFinite(err.data?.have)) { done += err.data.have - have; have = err.data.have; continue; }
-          show(`Stopped (${err.message}); choose the folder again to resume.`);
-          return;
-        }
-        show('Uploading…');
-      }
-    }
-    show('Uploaded.');
-    loadImport();
-  }
-
   async function load() {
     $('err').textContent = '';
     try {
@@ -292,25 +193,12 @@
       $('login').hidden = true;
       $('page').hidden = false;
       render(s);
-      loadImport();
       loadVisitors();
     } catch (err) {
       if (err.status === 401) { $('page').hidden = true; $('login').hidden = false; return; }
       $('err').textContent = err.message;
     }
   }
-  let polling = null;
-  async function loadImport() {
-    try {
-      const s = await call('GET', '/api/owner/import');
-      renderImport(s);
-      clearTimeout(polling);
-      if (s.job?.state === 'running') polling = setTimeout(loadImport, 2000);
-    } catch (err) {
-      $('imp-state').replaceChildren(el('dd', {}, err.message));
-    }
-  }
-
   $('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     $('login-err').textContent = '';
@@ -334,17 +222,6 @@
     if (!confirm('Reset the demo now? Everything visitors changed goes back to the start, and the app restarts (about a minute).')) return;
     $('reset').disabled = true;
     try { await call('POST', '/api/owner/reset'); $('reset-note').textContent = 'Restarting…'; setTimeout(load, 20000); } catch (err) { $('reset-note').textContent = err.message; }
-  });
-  $('folder').addEventListener('change', (e) => { if (e.target.files.length) upload(e.target.files); e.target.value = ''; });
-  $('discard-upload').addEventListener('click', () => { if (confirm('Delete everything uploaded?')) act('/api/owner/import/discard', { what: 'upload' }, 'Upload deleted.'); });
-  $('process').addEventListener('click', async () => {
-    $('process').disabled = true;
-    try {
-      const avoid = $('avoid').value;
-      await call('POST', '/api/owner/import/process', { source: $('source').value, name: $('car-name').value, maxMinutes: Number($('max-min').value), blurredBefore: $('blurred-before').checked, ...(avoid.trim() ? { avoid } : {}) });
-      $('avoid').value = '';
-    } catch (err) { $('job-out').hidden = false; $('job-out').textContent = err.message; }
-    loadImport();
   });
   load();
 })();

@@ -35,35 +35,6 @@
         <div class="card"><h3>Certificate</h3><dl class="kv" id="cert"></dl></div>
       </div>
 
-      <div class="card" id="import">
-        <h3>Highway footage</h3>
-        <p class="muted small">Your <code>highway_footage_with_can</code> folder goes through <code>tools/sanitize.js</code> here (highway minutes only, no home, work or stops, dates moved, no VIN) before anything is public. <b>README.txt</b> and <b>highway_stretches.csv</b> are never uploaded.</p>
-        <dl class="kv" id="imp-state"></dl>
-
-        <h4>1. Upload, or mount it at <code>/demo-import</code></h4>
-        <div class="actions">
-          <label class="btn sm">Choose the folder<input type="file" id="folder" webkitdirectory directory multiple hidden></label>
-          <button class="btn sm ghost" id="discard-upload" type="button">Delete the upload</button>
-        </div>
-        <div class="progress" id="up-bar" hidden><span></span></div>
-        <p class="small" id="up-note" aria-live="polite"></p>
-
-        <h4>2. Highway minutes only</h4>
-        <label class="field"><span>Places to keep out besides where drives start, end and stop (home, work): one <code>lat,lon</code> or <code>lat,lon,km</code> a line. Kept on the server, never published.</span>
-          <textarea class="input" id="avoid" rows="3" spellcheck="false" placeholder="41.8781,-87.6298,3"></textarea></label>
-        <div class="row">
-          <label class="field">Name<input class="input" id="car-name" value="Demo Model Y" maxlength="40"></label>
-          <label class="field">At most minutes<input class="input" id="max-min" type="number" min="1" max="120" value="30"></label>
-          <label class="field">From<select class="input" id="source"><option value="upload">the upload</option><option value="mount">/demo-import</option></select></label>
-        </div>
-        <label class="check"><input type="checkbox" id="blurred-before"> This footage was blurred before I uploaded it</label>
-        <div class="actions"><button class="btn sm solid" id="process" type="button">Sanitize</button></div>
-        <pre class="out" id="job-out" hidden></pre>
-
-        <h4>3. License plates, then publish</h4>
-        <div id="pending"></div>
-      </div>
-
       <div class="card" id="bans-card"><h3>Bans</h3><div id="bans"></div></div>
 
       <h2 class="section">Visitors</h2>
