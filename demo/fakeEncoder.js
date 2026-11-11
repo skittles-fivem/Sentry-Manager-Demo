@@ -9,7 +9,7 @@
 // snapshot and live progress, the devices list, GET /api/nodes, /api/jobs,
 // and the encoder, GPU and power parts of /api/stats).
 //
-// A job of DEMO_FAKE_CLIPS clips (default 5400: about 15 hours of driving, six
+// A job of DEMO_FAKE_CLIPS clips (default 13000: about 36 hours of driving, six
 // cameras) takes about 45 minutes at the GPUs' real speeds (DEMO_FAKE_MINUTES
 // stretches it to another length), shows its summary for three minutes, and
 // the next one starts.
@@ -29,6 +29,11 @@ const NODES = [
   {
     id: 'o0ff1cen4s01', name: 'Office NAS', host: '192.168.1.25', cpuName: 'Intel Core i5-12400',
     gpu: { id: 'pci:0000:00:02.0', kind: 'dri', name: 'Intel Arc A380', h265: 'hevc_qsv', av1: 'av1_qsv' }, slots: 3, mean: secsAt(310), idleW: 28, perClipW: 11
+  },
+  {
+    // NVIDIA's best card: three NVENC encoders, so about 6,000 fps over 12 encodes (500 each)
+    id: 'g4m1ngr1g001', name: 'Gaming Rig', host: '192.168.1.50', cpuName: 'AMD Ryzen 9 9950X3D',
+    gpu: { id: 'pci:0000:01:00.0', kind: 'nvidia', name: 'NVIDIA GeForce RTX 5090', h265: 'hevc_nvenc', av1: 'av1_nvenc' }, slots: 12, mean: secsAt(500), idleW: 95, perClipW: 16
   }
 ];
 // realistic H.265 speeds for Tesla's clips with decoding on the GPU: an RTX 4070 about 2,280 fps over its
@@ -49,7 +54,7 @@ function formatBytes(n) {
   return `${u === 0 ? v : v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2)} ${units[u]}`;
 }
 
-function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(process.env.DEMO_FAKE_CLIPS || 5400), minutes = process.env.DEMO_FAKE_MINUTES ? Number(process.env.DEMO_FAKE_MINUTES) : null, initialProgress = 0.35 }) {
+function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(process.env.DEMO_FAKE_CLIPS || 13000), minutes = process.env.DEMO_FAKE_MINUTES ? Number(process.env.DEMO_FAKE_MINUTES) : null, initialProgress = 0.35 }) {
   // every lane slot, and how long a clip takes on it (at the GPUs' real speeds, or scaled so the job lasts `minutes` when given)
   const lanes = [
     { device: GPU, concurrency: LOCAL.slots, mean: LOCAL.mean, encoder: LOCAL.encoder, node: null, gpuName: LOCAL.name },

@@ -14,7 +14,7 @@ test('the pretend job runs on this server and the nodes, finishes, and starts ag
   assert.ok([...lanes].some((d) => !d.startsWith('node:')), 'clips on this server');
   const stats = f.patchStats({ gpus: [], power: {} });
   assert.ok(stats.encoder.workers.some((w) => w.remote), 'remote workers in /api/stats');
-  assert.equal(stats.power.nodes.length, 2);
+  assert.equal(stats.power.nodes.length, 3);
   for (let i = 0; i < 400 && f.job.state !== 'completed'; i++) { now += 1000; f.tick(now); }
   assert.equal(f.job.state, 'completed');
   assert.ok(f.job.counters.savedBytes > 0);
@@ -30,7 +30,7 @@ test('the pretend job runs on this server and the nodes, finishes, and starts ag
 test('nodes and devices look like paired, online nodes', () => {
   const f = createFakeEncoder({ sourceRoot: '/x', vehicleId: 'demo-car', vehicleName: 'Demo' });
   const o = f.nodesOverview({ available: true });
-  assert.equal(o.nodes.length, 2);
+  assert.equal(o.nodes.length, 3);
   for (const n of o.nodes) {
     assert.match(n.id, /^[a-z0-9]{12}$/);
     assert.equal(n.online, true);
