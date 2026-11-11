@@ -32,7 +32,9 @@
 .sentry-demo-feedback:hover, .sentry-demo-feedback:focus-visible { color: #fff; text-decoration: underline; }
 .sentry-demo-card .sentry-demo-feedback { grid-column: 1 / -1; justify-self: start; font-size: 12px; }
 .sentry-demo-note .sentry-demo-feedback { flex: none; padding: 4px 6px; }
-.sentry-demo-note.folded .sentry-demo-feedback { display: none; }
+.sentry-demo-note.folded .sentry-demo-feedback { padding: 3px 8px 3px 2px; }
+/* folded on a phone: the tab and Feedback stacked on the right edge */
+@media (max-width: 760px) { .sentry-demo-note.folded { flex-direction: column; gap: 2px; } .sentry-demo-note.folded .sentry-demo-feedback { padding: 2px 6px 4px; font-size: 11.5px; } }
 
 /* "Swap to Horizon UI" / "Swap to original UI" (demo/uiSwap.js) */
 .sentry-demo-swap {

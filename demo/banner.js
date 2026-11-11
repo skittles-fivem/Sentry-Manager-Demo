@@ -46,14 +46,17 @@
     a.addEventListener('click', () => { a.href = `/demo/feedback?from=${encodeURIComponent((location.pathname + location.hash).slice(0, 200))}`; });
   }
   let timer = null;
+  // the main dashboard (original: #/overview, Horizon: #/dashboard): the note stays open there
+  const onDash = () => /^#?\/?(overview|dashboard)?$/.test(location.hash.split('?')[0]);
   const fold = (folded) => {
     pill.classList.toggle('folded', folded);
     tab.setAttribute('aria-expanded', String(!folded));
     clearTimeout(timer);
-    if (!folded) timer = setTimeout(() => fold(true), 8000);
+    if (!folded && !onDash()) timer = setTimeout(() => fold(true), 8000);
   };
+  addEventListener('hashchange', () => { if (onDash()) fold(false); else if (!pill.classList.contains('folded')) fold(false); });
   tab.addEventListener('click', () => fold(!pill.classList.contains('folded')));
-  pill.querySelector('.sentry-demo-close').addEventListener('click', () => fold(true));
+  pill.querySelector('.sentry-demo-close').addEventListener('click', () => { clearTimeout(timer); pill.classList.add('folded'); tab.setAttribute('aria-expanded', 'false'); });
 
   const place = () => {
     const side = document.querySelector('.side-card');
