@@ -49,10 +49,18 @@ jobs:
             echo "SEED=release" >> "$GITHUB_ENV"
           else
             echo "No seed release: synthetic test footage"
-            APT='-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30'
-            timeout 300 sudo apt-get $APT update -qq && timeout 300 sudo apt-get $APT install -y -qq ffmpeg fonts-dejavu-core >/dev/null
             git clone --depth 1 https://github.com/skittles-fivem/Sentry-Manager manager
-            node tools/synthetic.js manager seed/footage/demo-car 4
+            mkdir -p seed/footage/demo-car
+            # ffmpeg from Ubuntu's mirror when it answers in time, else the one in the manager's image
+            APT='-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20'
+            if timeout 90 sudo apt-get $APT update -qq && timeout 120 sudo apt-get $APT install -y -qq ffmpeg fonts-dejavu-core >/dev/null && command -v ffmpeg >/dev/null; then
+              node tools/synthetic.js manager seed/footage/demo-car 4
+            else
+              echo "Ubuntu's mirror did not answer: ffmpeg from the manager's image"
+              docker pull -q ghcr.io/skittles-fivem/sentry-manager:latest
+              docker run --rm --user "$(id -u):$(id -g)" --entrypoint node -v "$PWD:/w" -w /w \
+                ghcr.io/skittles-fivem/sentry-manager:latest tools/synthetic.js manager seed/footage/demo-car 4
+            fi
             echo "SEED=synthetic" >> "$GITHUB_ENV"
           fi
           rm -f seed/report.private.json
