@@ -18,8 +18,8 @@
 // machine as their browser describes it (OS, browser, screen, graphics...),
 // which the form tells them is sent, for tracking down bugs on their hardware.
 //
-// Limits: per address 10 an hour and 40 a day, 200 an hour in all (the answer
-// says how long to wait); a honeypot
+// Limits: per address 10 an hour (the answer says how long to wait), nothing
+// in all (the owner sorts them in Discord); a honeypot
 // field; at least 3 s between opening the page and sending (a signed token);
 // no empty or link-only messages. Hits are noted in the attack log; the
 // counts are kept in the demo's state, so a reset does not lift them.
@@ -34,7 +34,7 @@ const MAX_CONTACT = 100;
 const MAX_PAGE = 200;
 const MIN_MS = 3000;
 const TOKEN_MS = 6 * 3600_000;
-const LIMITS = { perHour: 10, perDay: 40, allPerHour: 200 };
+const LIMITS = { perHour: 10, perDay: Infinity, allPerHour: Infinity };
 const TIMEOUT_MS = 8000;
 const SENT = 'Thanks, sent';
 const FAILED = "Couldn't send, try again later";

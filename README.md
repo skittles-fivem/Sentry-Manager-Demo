@@ -153,7 +153,7 @@ page, an answer or a log, and the browser only hears "Thanks, sent" or
   bugs that only show on their hardware. The form says this is sent.
 - Feedback opens as a pop-up over the page (the Feedback link in the demo
   note); `/demo/feedback` is the same form as a page.
-- At most 10 an hour and 40 a day from one address, 200 an hour in all (the answer says how long to wait); a
+- At most 10 an hour from one address (the answer says how long to wait), no limit for everyone together; a
   hidden field only bots fill; at least 3 seconds on the page; no empty or
   link-only messages. Each hit is noted in the attack log.
 - It is the only network call the demo makes: to
