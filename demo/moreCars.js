@@ -4,8 +4,9 @@
 // car gets a different slice of the main car's clips (other days, or other
 // minutes when there is one day), as hard links into the demo's live footage
 // folder (same disk: no extra space; a copy only where a link fails). One
-// minute of each extra car is filed as a Saved or Sentry event, so those
-// views have something. Nothing is written to the seed or to /demo-import,
+// minute of each car (the main one too) is also filed as a Saved or Sentry
+// event, linked as the car copies it, so those views and the Recycle Bin
+// have something. Nothing is written to the seed or to /demo-import,
 // and no video is made: with no footage of the owner's, there are no extra
 // cars either. Built again at every start, like the rest of the live folder.
 
@@ -39,7 +40,8 @@ function minutesOf(recentDir) {
 /**
  * Which minutes each extra car gets: by day when there are at least as many
  * days as cars (car i: every n-th day from i), else by minute the same way.
- * A car whose slice is empty gets one minute, so every car has footage.
+ * A car whose slice has fewer than two minutes gets up to three (they may
+ * overlap another car's), so every car has footage to spare.
  */
 function slices(minutes, n = EXTRA_CARS.length) {
   const all = [...minutes].sort();
@@ -54,7 +56,9 @@ function slices(minutes, n = EXTRA_CARS.length) {
     } else {
       mine = all.filter((_, j) => j % n === i);
     }
-    if (!mine.length) mine = [all[i % all.length]];
+    // a car needs two recordings or more (one for the bin or a star, one
+    // to play): with little footage, a run of up to three minutes from i on
+    if (mine.length < 2) mine = all.length <= 3 ? all : [0, 1, 2].map((k) => all[(i + k) % all.length]).sort();
     out.push(mine);
   }
   return out;
@@ -64,11 +68,23 @@ function linkOrCopy(from, to) {
   try { fs.linkSync(from, to); return 'link'; } catch { fs.copyFileSync(from, to); return 'copy'; }
 }
 
+/** One event folder (as the car files it: copies of recent minutes, here links) with its event.json, no place in it. */
+function addEvent({ root, kind, key, from, names, reason }) {
+  const dir = path.join(root, kind, key);
+  fs.mkdirSync(dir, { recursive: true });
+  let copies = 0;
+  for (const name of names) if (linkOrCopy(path.join(from, name), path.join(dir, name)) === 'copy') copies += 1;
+  const ts = `${key.slice(0, 10)}T${key.slice(11).replace(/-/g, ':')}`;
+  fs.writeFileSync(path.join(dir, 'event.json'), `${JSON.stringify({ timestamp: ts, city: '', street: '', reason, camera: '0' })}\n`);
+  return { clips: names.length, copies };
+}
+
 /**
  * Builds the extra cars into `footage` from the main car's clips in
- * `seedCarDir` (<seed>/footage/demo-car). Returns { meta: { id: { name,
- * timezone, car } }, cars: [{ id, minutes, clips, copies }] }; empty with no
- * clips.
+ * `seedCarDir` (<seed>/footage/demo-car), and gives the main car's live copy
+ * (footage/demo-car, when there) a Saved and a Sentry event. Returns { meta:
+ * { id: { name, timezone, car } }, cars: [{ id, minutes, clips, copies }] };
+ * empty with no clips.
  */
 function buildMoreCars({ seedCarDir, footage, timezone = 'America/Chicago', cars = EXTRA_CARS }) {
   const recent = path.join(seedCarDir, 'TeslaCam', 'RecentClips');
@@ -76,30 +92,35 @@ function buildMoreCars({ seedCarDir, footage, timezone = 'America/Chicago', cars
   const meta = {};
   const made = [];
   if (!minutes.size) return { meta, cars: made };
-  const parts = slices([...minutes.keys()], cars.length);
+  const keys = [...minutes.keys()];
+  // the main car: a Saved event (its middle minute) and a Sentry event (its last)
+  const mainRoot = path.join(footage, 'demo-car', 'TeslaCam');
+  if (fs.existsSync(path.join(mainRoot, 'RecentClips'))) {
+    addEvent({ root: mainRoot, kind: 'SavedClips', key: keys[Math.floor(keys.length / 2)], from: recent, names: minutes.get(keys[Math.floor(keys.length / 2)]), reason: 'user_interaction_dashcam_icon_tapped' });
+    addEvent({ root: mainRoot, kind: 'SentryClips', key: keys[keys.length - 1], from: recent, names: minutes.get(keys[keys.length - 1]), reason: 'sentry_aware_object_detection' });
+  }
+  const parts = slices(keys, cars.length);
   cars.forEach((c, i) => {
     const mine = parts[i];
     const root = path.join(footage, c.id, 'TeslaCam');
     fs.rmSync(path.join(footage, c.id), { recursive: true, force: true });
+    const dir = path.join(root, 'RecentClips');
+    fs.mkdirSync(dir, { recursive: true });
     let clips = 0;
     let copies = 0;
-    // the middle minute of its slice is its event (when it has more than one)
-    const eventAt = mine.length > 1 ? mine[Math.floor(mine.length / 2)] : null;
     for (const key of mine) {
-      const dir = key === eventAt ? path.join(root, c.event, key) : path.join(root, 'RecentClips');
-      fs.mkdirSync(dir, { recursive: true });
       for (const name of minutes.get(key)) {
         if (linkOrCopy(path.join(recent, name), path.join(dir, name)) === 'copy') copies += 1;
         clips += 1;
       }
-      if (key === eventAt) {
-        // what the car writes with an event; no place in it
-        const ts = `${key.slice(0, 10)}T${key.slice(11).replace(/-/g, ':')}`;
-        fs.writeFileSync(path.join(dir, 'event.json'), `${JSON.stringify({ timestamp: ts, city: '', street: '', reason: c.reason, camera: '0' })}\n`);
-      }
     }
+    // the middle minute of its slice is also its event
+    const eventAt = mine[Math.floor(mine.length / 2)];
+    const ev = addEvent({ root, kind: c.event, key: eventAt, from: recent, names: minutes.get(eventAt), reason: c.reason });
+    clips += ev.clips;
+    copies += ev.copies;
     meta[c.id] = { name: c.name, timezone, car: c.car };
-    made.push({ id: c.id, name: c.name, minutes: mine.length, clips, copies, event: eventAt ? c.event : null });
+    made.push({ id: c.id, name: c.name, minutes: mine.length, clips, copies, event: c.event });
   });
   return { meta, cars: made };
 }

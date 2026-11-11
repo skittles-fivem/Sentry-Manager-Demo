@@ -93,22 +93,25 @@ async function showcase({ api, cars, log = () => {}, now = Date.now() }) {
   // the bin (only from a car with recordings to spare), and a retention policy
   for (const [i, car] of cars.entries()) {
     const recs = (await step(log, `recordings of ${car.name}`, () => recordingsOf(api, car.id))) || [];
-    const starred = new Set();
-    const starAt = recs.length > 2 ? [recs[recs.length - 1], recs[Math.floor(recs.length / 2)]] : recs.slice(-1);
+    // stars on drives and Saved events (a Sentry event is left for the bin)
+    const starable = recs.filter((r) => r.category !== 'Sentry');
+    const starAt = starable.length > 2 ? [starable[starable.length - 1], starable[Math.floor(starable.length / 2)]] : starable.slice(-1);
     for (const [j, rec] of starAt.entries()) {
       const clip = minuteOf(rec);
       if (!clip || (i % 2 === 1 && j > 0)) continue;
       const ok = await step(log, `star on ${car.name}`, () => api('POST', '/api/stars', { vehicle: car.id, clip, second: 12 + 9 * j, note: NOTES[(i + j) % NOTES.length] }));
-      if (ok) { done.stars += 1; starred.add(rec.id); }
+      if (ok) done.stars += 1;
     }
-    const spare = recs.filter((r) => !starred.has(r.id) && !r.protected);
+    // what the stars protected, as the app sees it now
+    const after = (await step(log, `recordings of ${car.name}`, () => recordingsOf(api, car.id))) || recs;
+    const spare = after.filter((r) => !r.protected).sort((a, b) => (a.category === 'Sentry') - (b.category === 'Sentry'));
     if (i === 2 && spare.length) {
       const ok = await step(log, `protect on ${car.name}`, () => api('POST', `/api/vehicles/${encodeURIComponent(car.id)}/protect`, { ids: [spare[0].id], protected: true }));
       if (ok) { done.protected += ok.count || 0; spare.shift(); }
     }
     // a short export of the main car's newest recording, for Exports
-    if (i === 0 && recs.length) {
-      const rec = recs[recs.length - 1];
+    if (i === 0 && starable.length) {
+      const rec = starable[starable.length - 1];
       const clip = minuteOf(rec);
       const files = {};
       for (const f of rec.paths || []) {
@@ -120,9 +123,11 @@ async function showcase({ api, cars, log = () => {}, now = Date.now() }) {
         if (out) done.exports += 1;
       }
     }
-    // the oldest spare recording goes to the bin, while the car keeps others
-    if (i !== 2 && spare.length && recs.length >= 2) {
-      const out = await step(log, `bin on ${car.name}`, () => api('POST', `/api/vehicles/${encodeURIComponent(car.id)}/trash`, { ids: [spare[0].id] }));
+    // to the bin: a Sentry event when there is one, else the oldest spare
+    // recording, always while the car keeps others to play
+    const toBin = spare.find((r) => r.category === 'Sentry') || (i !== 0 ? spare[0] : null);
+    if (i !== 2 && toBin && after.length >= 2) {
+      const out = await step(log, `bin on ${car.name}`, () => api('POST', `/api/vehicles/${encodeURIComponent(car.id)}/trash`, { ids: [toBin.id] }));
       done.binned += out?.moved?.length || 0;
     }
     // a policy that keeps what the demo has (nothing is moved by it), all different

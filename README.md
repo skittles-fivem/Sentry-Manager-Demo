@@ -207,6 +207,9 @@ footage folder by mistake, it refuses to start instead.
 | `DEMO_FAKE_MINUTES` | `45` | How long a pretend job takes |
 | `DEMO_CONVERT` | `off` | A real H.265 conversion of the demo footage after each reset (default `on` when the pretend one is off) |
 | `DEMO_CONVERT_PARALLEL` | `1` | Clips that conversion encodes at once |
+| `DEMO_MORE_CARS` | `on` | Three more cars (Model 3, S, X) made from your footage as links, each a different slice (`off`: just the one car) |
+| `DEMO_SHOWCASE` | `on` | At every start, through the app's API: each car's encoding settings, policies, saved places, stars, protected clips, a few recordings in the Recycle Bin and one export |
+| `DEMO_IMPORT_DIR` | `/demo-import` | Where the prepared footage folder is mounted (for a local run) |
 | `DEMO_SENTRYUSB` | `on` | The stand-in Sentry USB visitors may change (`off`: none) |
 | `DEMO_OWNER_PASSWORD` | | The owner page's password (from `.env`); empty: no owner page |
 | `DEMO_FEEDBACK_WEBHOOK` | | The Discord webhook for feedback (from `.env`); empty: feedback off |
