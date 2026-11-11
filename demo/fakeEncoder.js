@@ -9,7 +9,7 @@
 // snapshot and live progress, the devices list, GET /api/nodes, /api/jobs,
 // and the encoder, GPU and power parts of /api/stats).
 //
-// A job of DEMO_FAKE_CLIPS clips (default 2400: about 6.5 hours of driving, six
+// A job of DEMO_FAKE_CLIPS clips (default 4800: about 13 hours of driving, six
 // cameras) takes about 45 minutes at the GPUs' real speeds (DEMO_FAKE_MINUTES
 // stretches it to another length), shows its summary for three minutes, and
 // the next one starts.
@@ -24,16 +24,16 @@ const GPU = 'pci:0000:01:00.0';
 const NODES = [
   {
     id: 'g4r4g3pc0001', name: 'Garage PC', host: '192.168.1.40', cpuName: 'AMD Ryzen 7 5800X',
-    gpu: { id: 'pci:0000:2b:00.0', kind: 'nvidia', name: 'NVIDIA GeForce RTX 3060', h265: 'hevc_nvenc', av1: null }, slots: 4, mean: secsAt(140), idleW: 62, perClipW: 22
+    gpu: { id: 'pci:0000:2b:00.0', kind: 'nvidia', name: 'NVIDIA GeForce RTX 3060', h265: 'hevc_nvenc', av1: null }, slots: 4, mean: secsAt(275), idleW: 62, perClipW: 22
   },
   {
     id: 'o0ff1cen4s01', name: 'Office NAS', host: '192.168.1.25', cpuName: 'Intel Core i5-12400',
-    gpu: { id: 'pci:0000:00:02.0', kind: 'dri', name: 'Intel Arc A380', h265: 'hevc_qsv', av1: 'av1_qsv' }, slots: 3, mean: secsAt(150), idleW: 28, perClipW: 11
+    gpu: { id: 'pci:0000:00:02.0', kind: 'dri', name: 'Intel Arc A380', h265: 'hevc_qsv', av1: 'av1_qsv' }, slots: 3, mean: secsAt(300), idleW: 28, perClipW: 11
   }
 ];
-// realistic H.265 speeds for Tesla's clips with decoding on the GPU: an RTX 4070 about 900 fps over its
-// 6 encodes, the RTX 3060 about 560 over 4, the Arc A380 about 450 over 3 (the front camera's bigger clip takes longer)
-const LOCAL = { slots: 6, mean: secsAt(150), name: 'NVIDIA GeForce RTX 4070', encoder: 'hevc_nvenc' };
+// realistic H.265 speeds for Tesla's clips with decoding on the GPU: an RTX 4070 about 1,800 fps over its
+// 6 encodes, the RTX 3060 about 1,100 over 4, the Arc A380 about 900 over 3 (the front camera's bigger clip takes longer)
+const LOCAL = { slots: 6, mean: secsAt(300), name: 'NVIDIA GeForce RTX 4070', encoder: 'hevc_nvenc' };
 const CAMS = [['front', 1], ['back', 0.5], ['left_repeater', 0.5], ['right_repeater', 0.5], ['left_pillar', 0.5], ['right_pillar', 0.5]];
 
 const two = (n) => String(n).padStart(2, '0');
@@ -49,7 +49,7 @@ function formatBytes(n) {
   return `${u === 0 ? v : v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2)} ${units[u]}`;
 }
 
-function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(process.env.DEMO_FAKE_CLIPS || 2400), minutes = process.env.DEMO_FAKE_MINUTES ? Number(process.env.DEMO_FAKE_MINUTES) : null, initialProgress = 0.35 }) {
+function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(process.env.DEMO_FAKE_CLIPS || 4800), minutes = process.env.DEMO_FAKE_MINUTES ? Number(process.env.DEMO_FAKE_MINUTES) : null, initialProgress = 0.35 }) {
   // every lane slot, and how long a clip takes on it (at the GPUs' real speeds, or scaled so the job lasts `minutes` when given)
   const lanes = [
     { device: GPU, concurrency: LOCAL.slots, mean: LOCAL.mean, encoder: LOCAL.encoder, node: null, gpuName: LOCAL.name },

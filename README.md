@@ -83,9 +83,9 @@ through the app's API on `localhost`.
 
 So visitors see a whole archive converting the way it does at home, the
 Encoder runs a pretend H.265 job ([`demo/fakeEncoder.js`](demo/fakeEncoder.js)):
-2,400 clips, spread over this server's GPU (an RTX 4070, 6 at once, about 900 fps) and two
-paired nodes, a **Garage PC** (RTX 3060, 4 at once, about 560 fps) and an **Office NAS**
-(Intel Arc A380, 3 at once, about 450 fps). It moves in real time: clips finish, space
+4,800 clips, spread over this server's GPU (an RTX 4070, 6 at once, about 1,800 fps) and two
+paired nodes, a **Garage PC** (RTX 3060, 4 at once, about 1,100 fps) and an **Office NAS**
+(Intel Arc A380, 3 at once, about 900 fps). It moves in real time: clips finish, space
 saved and energy add up, the Hardware panel shows every GPU and each
 server's power, the Nodes page shows both nodes online and busy, and Jobs
 lists it with two earlier runs. It takes about 45 minutes, shows its summary
@@ -221,7 +221,7 @@ footage folder by mistake, it refuses to start instead.
 | `DEMO_RESET_HOURS` | `24` | Hours between fresh starts (`0`: only on restart) |
 | `DEMO_EXPORT_QUEUE` | `2` | Exports waiting or rendering at once, for all visitors |
 | `DEMO_FAKE_ENCODER` | `on` | The pretend conversion with nodes (`off`: the Encoder shows the real server) |
-| `DEMO_FAKE_CLIPS` | `2400` | Clips in each pretend job |
+| `DEMO_FAKE_CLIPS` | `4800` | Clips in each pretend job |
 | `DEMO_FAKE_MINUTES` | | Stretch a pretend job to this many minutes (unset: the GPUs' real speeds, about 45 minutes) |
 | `DEMO_CONVERT` | `off` | A real H.265 conversion of the demo footage after each reset (default `on` when the pretend one is off) |
 | `DEMO_CONVERT_PARALLEL` | `1` | Clips that conversion encodes at once |
