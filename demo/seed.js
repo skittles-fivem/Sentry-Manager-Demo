@@ -13,6 +13,7 @@ const path = require('path');
 const { call } = require('./internalClient');
 const { uploadCan } = require('./seedCan');
 const { seedViewerLayout } = require('./viewerLayout');
+const { showcase } = require('./showcase');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -31,7 +32,7 @@ async function waitForJob(api, jobId, log, what, timeoutMs = 30 * 60_000) {
   return null;
 }
 
-async function seed({ port, token, seedDir, footage, log }) {
+async function seed({ port, token, seedDir, footage, extraMeta = {}, log }) {
   const api = (method, p, body, opts) => call(port, token, method, p, body, opts);
   // wait for the app to answer
   for (let i = 0; i < 60; i++) {
@@ -49,6 +50,8 @@ async function seed({ port, token, seedDir, footage, log }) {
   } catch {
     // folder names it is
   }
+  // the extra cars made from the same footage (demo/moreCars.js)
+  names = { ...extraMeta, ...names };
   const cars = fs.existsSync(footage)
     ? fs.readdirSync(footage, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith('.')).map((d) => d.name).sort()
     : [];
@@ -105,6 +108,15 @@ async function seed({ port, token, seedDir, footage, log }) {
       await uploadCan({ api, canDir, vehicles: added, log });
     } catch (err) {
       log(`CAN data: ${err.message}`);
+    }
+  }
+  // something in every feature: encoding per car, policies, places, stars,
+  // protected recordings, the Recycle Bin (demo/showcase.js)
+  if (added.length && String(process.env.DEMO_SHOWCASE || 'on').toLowerCase() !== 'off') {
+    try {
+      await showcase({ api, cars: added, log });
+    } catch (err) {
+      log(`showcase: ${err.message}`);
     }
   }
   const { vehicles } = await api('GET', '/api/vehicles');

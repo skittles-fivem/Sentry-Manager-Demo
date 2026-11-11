@@ -29,7 +29,7 @@ delete process.env.DEMO_OWNER_PASSWORD;
 delete process.env.DEMO_FEEDBACK_WEBHOOK;
 
 const APP = process.env.APP_ROOT || '/app';
-const DATA = process.env.DATA_PATH || '/data';
+let DATA = process.env.DATA_PATH || '/data';
 let FOOTAGE = process.env.FOOTAGE_ROOT || '/footage';
 const RESET_HOURS = Number(process.env.DEMO_RESET_HOURS || 24);
 const on = (v, dflt) => !/^(off|false|0|no)$/i.test(String(v ?? dflt));
@@ -43,6 +43,13 @@ const say = (m) => process.stdout.write(`[demo] ${m}\n`);
 // ---- what survives the resets (demo/store.js): the attack log, bans, the
 // owner page, feedback limits, the imported seed and the certificates
 const store = createStore({ log: say });
+// The app's data (its database, CAN logs and their index) on the kept volume,
+// emptied at every start like /data: the app keeps 2 GB free before it takes a
+// CAN log, which the in-memory /data (2 GB) never has.
+if (store.writable && on(process.env.DEMO_DATA_ON_DISK, 'on')) {
+  DATA = path.join(store.dir, 'live-data');
+  process.env.DATA_PATH = DATA;
+}
 if (!store.writable) say(`${store.dir} is not writable: the attack log, bans, imported footage and certificates are not kept across resets (docker-compose.yml mounts it)`);
 process.on('exit', () => store.flush());
 const importer = store.writable ? createImporter({ stateDir: store.dir, log: say }) : null;
@@ -118,6 +125,19 @@ if (fs.existsSync(seedFootage)) {
   }
   say(`footage copied from ${seedFootage}`);
 } else say(`no footage in ${seedFootage}`);
+// More cars, from the owner's own clips only (demo/moreCars.js): each a
+// different slice of them, as links (DEMO_MORE_CARS=off: just the one car)
+let moreCars = {};
+if (importer && SEED === importer.activeSeed() && on(process.env.DEMO_MORE_CARS, 'on')) {
+  try {
+    const { buildMoreCars } = require('./moreCars');
+    const out = buildMoreCars({ seedCarDir: path.join(seedFootage, 'demo-car'), footage: FOOTAGE });
+    moreCars = out.meta;
+    for (const c of out.cars) say(`car "${c.name}": ${c.minutes} minutes of your footage (${c.clips} clips${c.copies ? `, ${c.copies} copied` : ''})`);
+  } catch (err) {
+    say(`more cars: ${err.message}`);
+  }
+}
 
 // ---- "Swap to Horizon UI", per browser (demo/uiSwap.js): the app's packs
 // answer Horizon inside a request from a browser with the demo's cookie
@@ -441,7 +461,7 @@ const waitForPort = () => new Promise((resolve) => {
   };
   tryOnce();
 });
-waitForPort().then(() => seed({ port: listenPort, token: INTERNAL, seedDir: SEED, footage: FOOTAGE, log: say }))
+waitForPort().then(() => seed({ port: listenPort, token: INTERNAL, seedDir: SEED, footage: FOOTAGE, extraMeta: moreCars, log: say }))
   .then((cars) => {
     const car = cars?.[0];
     if (FAKE_ENCODER && car) {

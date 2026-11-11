@@ -144,8 +144,23 @@ function parseAvoid(text) {
  * tools/sanitize.js), app (the manager's folder), log, now, spawnImpl,
  * volume (the state volume's name, for the blur command).
  */
+/** "YYYY-MM-DD_HH-MM-SS" in the time zone tz as UTC ms. */
+function wallToUtc(key, tz) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/.exec(key);
+  if (!m) return NaN;
+  const asUtc = Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const offsetAt = (t) => {
+    const p = Object.fromEntries(fmt.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+    return Date.UTC(+p.year, p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - t;
+  };
+  let t = asUtc - offsetAt(asUtc);
+  t = asUtc - offsetAt(t);
+  return t;
+}
+
 function createImporter({
-  stateDir, mountDir = '/demo-import', sanitize = SANITIZE, app = process.env.APP_ROOT || '/app',
+  stateDir, mountDir = process.env.DEMO_IMPORT_DIR || '/demo-import', sanitize = SANITIZE, app = process.env.APP_ROOT || '/app',
   log = () => {}, now = () => Date.now(), spawnImpl = spawn, volume = process.env.DEMO_STATE_VOLUME || 'sentry-manager-demo-state', node = process.execPath
 }) {
   const dirs = {
@@ -377,11 +392,18 @@ function createImporter({
       minutes.add(base.slice(0, 19));
     }
     if (!clips) { fs.rmSync(next, { recursive: true, force: true }); throw new Error('no clips named like 2026-10-20_14-05-00-front.mp4 under /demo-import/footage'); }
+    // only the CAN logs around the footage's minutes (the clips are in the car's
+    // local time, the logs' names in UTC): a log starts at most 20 min before a
+    // clip it covers, and a sidecar goes with its log
+    const clipUtc = [...minutes].map((k) => wallToUtc(k, TZ)).filter(Number.isFinite);
+    const near = (t) => clipUtc.some((c) => t >= c - 20 * 60_000 && t <= c + 60_000);
     const map = {};
     let logs = 0;
     for (const f of walk(path.join(mountDir, 'can_logs'))) {
       const m = LOG.exec(path.basename(f));
       if (!m) continue;
+      const st = /_(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z_/.exec(path.basename(f));
+      if (clipUtc.length && st && !near(Date.UTC(+st[1], st[2] - 1, +st[3], +st[4], +st[5], +st[6]))) continue;
       const dir = path.join(next, 'can', m[1]);
       fs.mkdirSync(dir, { recursive: true });
       fs.copyFileSync(f, path.join(dir, path.basename(f)));
