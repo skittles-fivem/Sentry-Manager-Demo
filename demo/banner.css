@@ -192,3 +192,21 @@
 }
 /* Horizon: rows of tabs that slide sideways never slide up and down too (their tabs' corner marks made them a little taller than the row) */
 nav.stabs, .tuner-track { overflow-y: hidden !important; }
+/* Horizon's Settings tab row on phones and tablets slides sideways: its corner brackets slid with the tabs into
+   the middle of the row. Drawn on the row's own background instead, they stay at its four corners. */
+@media (max-width: 1023px) {
+  nav.stabs.hud::before { display: none; }
+  nav.stabs.hud {
+    --c: var(--mag);
+    background:
+      linear-gradient(var(--c), var(--c)) top left / 16px 2px no-repeat,
+      linear-gradient(var(--c), var(--c)) top left / 2px 16px no-repeat,
+      linear-gradient(var(--c), var(--c)) top right / 16px 2px no-repeat,
+      linear-gradient(var(--c), var(--c)) top right / 2px 16px no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom left / 16px 2px no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom left / 2px 16px no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom right / 16px 2px no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom right / 2px 16px no-repeat,
+      var(--glass);
+  }
+}
