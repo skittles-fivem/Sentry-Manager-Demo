@@ -199,7 +199,7 @@ function withBanner(req, res, handler) {
     let body = Buffer.concat(chunks);
     if (/text\/html/.test(String(headers['content-type'] || '')) && !headers['content-encoding']) {
       const html = body.toString('utf8');
-      if (html.includes('id="app"') && html.includes('</head>')) {
+      if (html.includes('</head>') && !html.includes('/demo/banner.js')) { // every page of every interface (Viewer and Encoder too)
         const ui = uiSwap.uiOf(req) || 'original';
         body = Buffer.from(html.replace('</head>', `  <link rel="stylesheet" href="/demo/banner.css">\n  <script src="/demo/device.js" defer></script>\n  <script src="/demo/banner.js" data-ui="${ui}" defer></script>\n</head>`));
       }
@@ -400,7 +400,8 @@ function gateInner(handler) {
       if (v.export && await exportsBusy()) return json(res, 429, { error: 'The demo is already making exports for other visitors. Try again in a few minutes.', code: 'DEMO_BUSY' });
     }
     if (req.method === 'GET' || req.method === 'HEAD') {
-      if (p === '/' || p === '/index.html') return withBanner(req, res, handler);
+      // the demo note and Feedback on every interface's pages: the app, the Viewer and the Encoder
+      if (p === '/' || p === '/index.html' || /^\/studio\/(?:[\w-]+\.html)?$/.test(p)) return withBanner(req, res, handler);
     }
     return handler(req, res);
   };
