@@ -28,6 +28,24 @@
   text-decoration: none;
 }
 .sentry-demo-card .sentry-demo-link:hover { text-decoration: underline; }
+.sentry-demo-feedback { color: #aeb7c6; font-weight: 600; text-decoration: none; }
+.sentry-demo-feedback:hover, .sentry-demo-feedback:focus-visible { color: #fff; text-decoration: underline; }
+.sentry-demo-card .sentry-demo-feedback { grid-column: 1 / -1; justify-self: start; font-size: 12px; }
+.sentry-demo-note .sentry-demo-feedback { flex: none; padding: 4px 6px; }
+.sentry-demo-note.folded .sentry-demo-feedback { display: none; }
+
+/* "Swap to Horizon UI" / "Swap to original UI" (demo/uiSwap.js) */
+.sentry-demo-swap {
+  flex: none; border: 1px solid rgba(245, 184, 61, 0.55); background: rgba(245, 184, 61, 0.12); color: #f5b83d;
+  font: 700 12px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 5px 10px; border-radius: 999px; cursor: pointer;
+}
+.sentry-demo-swap:hover { background: rgba(245, 184, 61, 0.22); }
+.sentry-demo-swap:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.sentry-demo-swap:disabled { opacity: 0.6; cursor: progress; }
+.sentry-demo-card .sentry-demo-swap { grid-column: 1 / -1; justify-self: start; }
+.sentry-demo-note.folded .sentry-demo-swap { display: none; }
+/* no sidebar to sit in (Horizon): the pill shows on every screen, clear of its bars */
+.sentry-demo-note.free { display: flex; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 /* the sidebar's nav pushes Collapse down with margin-top: auto; the card takes that place */
 .side-card .sentry-demo-card + .collapse { margin-top: 0; }
 .app.collapsed .sentry-demo-card { display: none; }
@@ -93,3 +111,12 @@
 
 /* nothing to sign out of in the demo */
 [data-action="signout"], [data-end-others] { display: none !important; }
+/* Horizon on narrower screens: its round button sits bottom right (16 px up, 56 px tall): above it */
+@media (max-width: 1023px) {
+  .sentry-demo-note.free:not(.folded) { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+}
+/* a narrow phone: the pill's buttons go onto two lines rather than past the edge */
+@media (max-width: 440px) {
+  .sentry-demo-note:not(.folded) { flex-wrap: wrap; border-radius: 18px; row-gap: 4px; padding: 6px 8px; }
+  .sentry-demo-note:not(.folded) .sentry-demo-text { display: none; }
+}

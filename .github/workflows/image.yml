@@ -59,7 +59,7 @@ jobs:
       - name: Smoke test
         run: |
           docker run -d --name demo -p 9000:9000 --read-only --user 1000:1000 --cap-drop ALL \
-            --tmpfs /data:uid=1000,gid=1000 --tmpfs /footage:uid=1000,gid=1000 -e DEMO_CONVERT=off demo:test
+            --tmpfs /data:uid=1000,gid=1000 --tmpfs /footage:uid=1000,gid=1000 -e DEMO_CONVERT=off -e DEMO_OWNER_PASSWORD=ci demo:test
           for i in $(seq 1 90); do docker logs demo 2>&1 | grep -q '\[demo\] ready' && break; sleep 2; done
           docker logs demo 2>&1 | grep '\[demo\]'
           docker logs demo 2>&1 | grep -q '\[demo\] ready'
@@ -73,8 +73,11 @@ jobs:
           test "$(curl $H -o /dev/null -w '%{http_code}' -X POST -d '{}' https://localhost:9000/api/bin/empty)" = 403
           test "$(curl $H -o /dev/null -w '%{http_code}' -X POST -d '{"name":"x"}' https://localhost:9000/api/vehicles)" = 403
           test "$(curl $H -o /dev/null -w '%{http_code}' -X POST -d '{}' https://localhost:9000/api/converter/invoke/start)" = 403
-          # the demo note on the page
+          # the demo note on the page, and its feedback page (off: no webhook)
           curl -sk https://localhost:9000/ | grep -q '/demo/banner.js'
+          curl -sk https://localhost:9000/api/demo/feedback | grep -q '"enabled":false'
+          # the owner page: from the host, through Docker's port proxy, it is public: sent to /
+          test "$(curl -sk -o /dev/null -w '%{http_code}' https://localhost:9000/owner)" = 302
           docker rm -f demo
 
       - name: Publish
