@@ -190,3 +190,5 @@
 @media (max-width: 760px) {
   .sentry-demo-note.folded ~ .sentry-demo-wm { left: calc(8px + env(safe-area-inset-left, 0px)); right: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding: 4px 8px 5px; font-size: 10.5px; line-height: 1.3; max-width: 112px; opacity: 0.75; }
 }
+/* Horizon: rows of tabs that slide sideways never slide up and down too (their tabs' corner marks made them a little taller than the row) */
+nav.stabs, .tuner-track { overflow-y: hidden !important; }
