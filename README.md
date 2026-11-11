@@ -135,6 +135,12 @@ Battery Current; Outside Temperature, Cabin Temperature, Steering), then
 the *Every stat* List with *Changing only* ticked, in °F and mph. A
 visitor's own rearranging is answered as saved and forgotten.
 
+On the Viewer, at every window size and display scaling (checked from
+1366×768 to 4K, 100 % to 300 %, in both interfaces), the cameras end above
+the car-data bar and the Clips panel stops at it; the demo note folds to a
+small "Demo" tab in the corner and the watermark moves under the sidebar's
+demo card, so neither covers the playback controls ([`demo/banner.js`](demo/banner.js)).
+
 ### Feedback
 
 The demo note links a feedback page (`/demo/feedback`): a message (2,000

@@ -176,10 +176,13 @@
 .sentry-demo-toast.gone { opacity: 0; pointer-events: none; }
 @media (max-width: 760px) { .sentry-demo-toast { bottom: auto; top: 16px; } }
 
-/* the Viewer (demo/banner.js): folded, a small tab on the right edge, off the playback controls */
-.sentry-demo-note.folded.on-viewer {
-  left: auto; right: 0; bottom: auto; top: 42%;
-  flex-direction: column; gap: 2px;
-  border-radius: 12px 0 0 12px; border-right: 0;
+/* the Viewer: the watermark in the sidebar's demo card, off the playback controls */
+.sentry-demo-wm.in-card { position: static; display: block; margin: 8px 12px 0; padding: 0; border: 0; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; font-size: 11.5px; opacity: 0.8; }
+/* the Viewer's cameras fitted above the car-data bar: both rows shrink alike (a tile's content set no floor) */
+.multi-cam-grid.sentry-demo-fit > .multi-tile { min-height: 0; overflow: hidden; }
+.side-card .sentry-demo-wm.in-card + .collapse { margin-top: 0; }
+/* the Viewer, folded: just "Demo", in the bottom-left corner over the sidebar, off the car-data bar and the playback controls */
+@media (min-width: 761px) {
+  .sentry-demo-note.folded.on-viewer { bottom: 12px; }
+  .sentry-demo-note.folded.on-viewer .sentry-demo-feedback { display: none; }
 }
-.sentry-demo-note.folded.on-viewer .sentry-demo-feedback { padding: 2px 6px 4px; font-size: 11.5px; }

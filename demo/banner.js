@@ -105,6 +105,10 @@
       openFeedback();
     });
   }
+  // In a page inside another (the Viewer the interfaces embed) the outer page
+  // already has the note and the watermark: here they would sit on the
+  // playback controls.
+  const embedded = window.top !== window;
   let timer = null;
   // the main dashboard (original: #/overview, Horizon: #/dashboard): the note stays open there
   const onDash = () => /^#?\/?(overview|dashboard)?$/.test(location.hash.split('?')[0]);
@@ -114,20 +118,33 @@
     clearTimeout(timer);
     if (!folded && !onDash()) timer = setTimeout(() => fold(true), 8000);
   };
-  // the Viewer (the Original's is the Studio page, /studio/, in a frame): the note starts folded, a small tab on the right edge (demo/banner.css), so it
-  // never sits on the playback controls (Play and the timeline are along the bottom there)
+  // the Viewer: its playback controls run along the bottom, so the note starts
+  // folded there and the watermark goes in the sidebar's demo card (or, with no
+  // card showing, stays off that page) instead of over the controls
   const onViewer = () => /^#\/?(viewer|watch|play)\b/.test(location.hash) || location.pathname.startsWith('/studio/');
-  const where = () => pill.classList.toggle('on-viewer', onViewer());
+  const placeWm = () => {
+    if (embedded) return;
+    pill.classList.toggle('on-viewer', onViewer());
+    const inCard = onViewer() && card.isConnected && card.offsetParent !== null;
+    wm.classList.toggle('in-card', inCard);
+    if (inCard) { if (wm.previousElementSibling !== card) card.after(wm); }
+    else if (onViewer()) wm.remove();
+    else if (wm.parentElement !== document.body) document.body.appendChild(wm);
+  };
   addEventListener('hashchange', () => {
-    where();
-    if (onDash()) fold(false);
-    else if (onViewer()) fold(true);
+    if (onViewer()) fold(true);
+    else if (onDash()) fold(false);
     else if (!pill.classList.contains('folded')) fold(false);
+    placeWm();
   });
+  addEventListener('resize', () => placeWm());
+  // the sidebar collapsed or opened: the card shows or not
+  if (!embedded) setInterval(() => { if (onViewer() || wm.classList.contains('in-card')) placeWm(); }, 1000);
   tab.addEventListener('click', () => fold(!pill.classList.contains('folded')));
   pill.querySelector('.sentry-demo-close').addEventListener('click', () => { clearTimeout(timer); pill.classList.add('folded'); tab.setAttribute('aria-expanded', 'false'); });
 
   const place = () => {
+    if (embedded) return;
     const side = document.querySelector('.side-card');
     if (side && !side.contains(card)) {
       // above the sidebar's last control (Collapse), or at its end
@@ -136,10 +153,9 @@
     }
     if (!document.body.contains(pill)) {
       document.body.appendChild(pill);
-      where();
       fold(onViewer());
     }
-    if (!document.body.contains(wm)) document.body.appendChild(wm);
+    placeWm();
     // an interface with no sidebar (Horizon): the pill on every screen
     pill.classList.toggle('free', !document.querySelector('.side-card'));
   };
@@ -157,8 +173,56 @@
     clearTimeout(note.t);
     note.t = setTimeout(() => note.classList.add('gone'), 4500);
   }, true);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', place);
-  else place();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { place(); fitViewer(); });
+  else { place(); fitViewer(); }
+  // The Viewer (Sentry Studio): its car-data bar lies over the cameras, at
+  // the bottom. At any window size and display scaling, the cameras end above
+  // the bar instead, and the Clips panel ends above it too, so the bar covers
+  // neither. Nothing changes while the bar is hidden, floating or moved, or
+  // when the window is too short to leave the cameras room (then as before).
+  function fitViewer() {
+    const box = document.getElementById('videoContainer');
+    const grid = document.getElementById('multiCamGrid');
+    if (!box || !grid || fitViewer.on) return;
+    fitViewer.on = true;
+    const clips = () => document.getElementById('clipBrowser');
+    let raf = 0;
+    let last = '';
+    const clear = () => {
+      if (last === '') return;
+      last = '';
+      grid.style.removeProperty('bottom');
+      grid.classList.remove('sentry-demo-fit');
+      if (clips()?.style.getPropertyValue('max-height')) clips().style.removeProperty('max-height');
+    };
+    const fit = () => {
+      raf = 0;
+      const bar = [...box.children].find((n) => n.classList?.contains('sentry-sd') && n.classList.contains('over') && !n.classList.contains('sd-listpanel'));
+      if (!bar || !bar.offsetHeight || getComputedStyle(bar).display === 'none') return clear();
+      const b = bar.getBoundingClientRect();
+      const c = box.getBoundingClientRect();
+      const room = Math.ceil(c.bottom - b.top + 6);
+      // a bar dragged up, or a window with too little left for the cameras: as it was
+      if (room <= 0 || room > c.height * 0.6 || c.height - room < 140) return clear();
+      const key = `${room}`;
+      if (key !== last) { last = key; grid.classList.add('sentry-demo-fit'); grid.style.setProperty('bottom', `${room}px`, 'important'); }
+      const cb = clips();
+      if (cb && cb.offsetHeight) {
+        const top = cb.getBoundingClientRect().top;
+        const max = Math.floor(b.top - top - 8);
+        const want = max > 120 ? `${max}px` : '';
+        if (cb.style.getPropertyValue('max-height') !== want) {
+          if (want) { cb.style.setProperty('max-height', want, 'important'); cb.style.overflowY = 'auto'; } else cb.style.removeProperty('max-height');
+        }
+      }
+    };
+    const soon = () => { if (!raf) raf = requestAnimationFrame(fit); };
+    new ResizeObserver(soon).observe(box);
+    new MutationObserver((list) => { if (list.some((m) => m.target !== grid && !grid.contains(m.target))) soon(); })
+      .observe(box, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+    addEventListener('resize', soon);
+    soon();
+  }
   // the shell draws its sidebar after start: place the card once it is there
   new MutationObserver(() => { if (!card.isConnected && document.querySelector('.side-card')) place(); })
     .observe(document.documentElement, { childList: true, subtree: true });
