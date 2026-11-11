@@ -40,3 +40,12 @@ test('nodes and devices look like paired, online nodes', () => {
   assert.ok(d.some((x) => x.kind === 'node' && x.online));
   for (const lane of f.current().value.config.lanes) assert.match(lane.device, /^(pci:[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]|cpu|node:[a-z0-9]{12}(@(pci:[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]|cpu))?)$/);
 });
+
+test('each server has a peak above what the pretend load draws, so no power bar sits at 100%', () => {
+  const { createFakeEncoder } = require('../demo/fakeEncoder');
+  const f = createFakeEncoder({ sourceRoot: '/footage/demo-car/TeslaCam', vehicleId: 'demo-car', vehicleName: 'Demo', clips: 60, minutes: 2, initialProgress: 0.3 });
+  const p = f.patchStats({ power: { cpuW: 38 } }).power;
+  assert.ok(p.peakW > p.totalW);
+  assert.ok(p.combined.peakW > p.combined.totalW);
+  for (const n of p.nodes) assert.ok(n.peakW > n.totalW, n.name);
+});

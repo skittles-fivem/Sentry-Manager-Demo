@@ -24,21 +24,24 @@ const GPU = 'pci:0000:01:00.0';
 const NODES = [
   {
     id: 'g4r4g3pc0001', name: 'Garage PC', host: '192.168.1.40', cpuName: 'AMD Ryzen 7 5800X',
-    gpu: { id: 'pci:0000:2b:00.0', kind: 'nvidia', name: 'NVIDIA GeForce RTX 3060', h265: 'hevc_nvenc', av1: null }, slots: 4, mean: secsAt(290), idleW: 62, perClipW: 22
+    gpu: { id: 'pci:0000:2b:00.0', kind: 'nvidia', name: 'NVIDIA GeForce RTX 3060', h265: 'hevc_nvenc', av1: null }, slots: 4, mean: secsAt(290), idleW: 62, perClipW: 22, peakW: 330
   },
   {
     id: 'o0ff1cen4s01', name: 'Office NAS', host: '192.168.1.25', cpuName: 'Intel Core i5-12400',
-    gpu: { id: 'pci:0000:00:02.0', kind: 'dri', name: 'Intel Arc A380', h265: 'hevc_qsv', av1: 'av1_qsv' }, slots: 3, mean: secsAt(310), idleW: 28, perClipW: 11
+    gpu: { id: 'pci:0000:00:02.0', kind: 'dri', name: 'Intel Arc A380', h265: 'hevc_qsv', av1: 'av1_qsv' }, slots: 3, mean: secsAt(310), idleW: 28, perClipW: 11, peakW: 140
   },
   {
     // NVIDIA's best card: three NVENC encoders, so about 6,000 fps over 12 encodes (500 each)
     id: 'g4m1ngr1g001', name: 'Gaming Rig', host: '192.168.1.50', cpuName: 'AMD Ryzen 9 9950X3D',
-    gpu: { id: 'pci:0000:01:00.0', kind: 'nvidia', name: 'NVIDIA GeForce RTX 5090', h265: 'hevc_nvenc', av1: 'av1_nvenc' }, slots: 12, mean: secsAt(500), idleW: 95, perClipW: 16
+    gpu: { id: 'pci:0000:01:00.0', kind: 'nvidia', name: 'NVIDIA GeForce RTX 5090', h265: 'hevc_nvenc', av1: 'av1_nvenc' }, slots: 12, mean: secsAt(500), idleW: 95, perClipW: 16, peakW: 820
   }
 ];
 // realistic H.265 speeds for Tesla's clips with decoding on the GPU: an RTX 4070 about 2,280 fps over its
 // 6 encodes (380 each, about 10.5x), the RTX 3060 about 1,160 over 4, the Arc A380 about 930 over 3 (the front camera's bigger clip takes longer)
-const LOCAL = { slots: 6, mean: secsAt(380), name: 'NVIDIA GeForce RTX 4070', encoder: 'hevc_nvenc' };
+// peakW: the most each server has drawn (a full gaming or encoding load), which the power bars are full at;
+// without it the steady pretend load was its own peak and every bar sat at 100%
+const PEAK_ALL_W = 1500;
+const LOCAL = { peakW: 420, slots: 6, mean: secsAt(380), name: 'NVIDIA GeForce RTX 4070', encoder: 'hevc_nvenc' };
 const CAMS = [['front', 1], ['back', 0.5], ['left_repeater', 0.5], ['right_repeater', 0.5], ['left_pillar', 0.5], ['right_pillar', 0.5]];
 
 const two = (n) => String(n).padStart(2, '0');
@@ -325,12 +328,12 @@ function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(
       tempC: local ? 61 + Math.round(Math.random() * 4) : 38, powerW: local ? 92 + local * 6 + Math.round(Math.random() * 5) : 14, clients: null
     };
     const cpuW = Math.round((stats.power?.cpuW ?? 38) * 10) / 10 || 38;
-    const own = { cpuW, gpuW: gpu.powerW, totalW: Math.round((cpuW + gpu.powerW) * 10) / 10, todayWh: Math.round(job._wh * 1000) / 1000 + 900, weekWh: 6400 };
+    const own = { cpuW, gpuW: gpu.powerW, totalW: Math.round((cpuW + gpu.powerW) * 10) / 10, todayWh: Math.round(job._wh * 1000) / 1000 + 900, weekWh: 6400, peakW: LOCAL.peakW };
     const nodeRows = NODES.map((n) => {
       const busy = ws.filter((w) => w.remote && w.deviceId.startsWith(`node:${n.id}`)).length;
       const gpuW = Math.round((busy * n.perClipW + 9) * 10) / 10;
       const totalW = Math.round((n.idleW + gpuW) * 10) / 10;
-      return { id: n.id, name: n.name, online: true, known: true, cpuW: n.idleW, gpuW, totalW, todayWh: 700 + busy * 40, weekWh: 4100, cpuUnavailable: null, gpus: [{ name: n.gpu.name, w: gpuW }] };
+      return { id: n.id, name: n.name, online: true, known: true, cpuW: n.idleW, gpuW, totalW, todayWh: 700 + busy * 40, weekWh: 4100, peakW: n.peakW, cpuUnavailable: null, gpus: [{ name: n.gpu.name, w: gpuW }] };
     });
     const sum = (k) => Math.round((own[k] + nodeRows.reduce((s, r) => s + r[k], 0)) * 10) / 10;
     const devicesBlock = [
@@ -342,7 +345,7 @@ function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(
       gpus: [gpu, ...(Array.isArray(stats.gpus) ? stats.gpus : [])],
       power: {
         ...(stats.power || {}), ...own, cpuSource: stats.power?.cpuSource || 'rapl', gpuSource: 'nvidia-smi',
-        nodes: nodeRows, combined: { cpuW: sum('cpuW'), gpuW: sum('gpuW'), totalW: sum('totalW'), todayWh: sum('todayWh'), weekWh: sum('weekWh'), todayCost: null, weekCost: null }
+        nodes: nodeRows, combined: { cpuW: sum('cpuW'), gpuW: sum('gpuW'), totalW: sum('totalW'), todayWh: sum('todayWh'), weekWh: sum('weekWh'), peakW: Math.max(PEAK_ALL_W, sum('totalW')), todayCost: null, weekCost: null }
       },
       encoder: {
         jobId: job.id, state: job.state, running: job.state !== 'completed', workers: ws, concurrency: job.config.concurrency,
