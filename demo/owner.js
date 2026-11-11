@@ -2,7 +2,7 @@
 
 // The demo's owner page: /owner and /api/owner/*, part of the demo layer
 // (the manager knows nothing of it). It shows the attack log
-// (demo/attackLog.js), visitor counts, bans, a Reset now button, the
+// (demo/attackLog.js), visitor counts and activity (demo/visitors.js), bans, a Reset now button, the
 // certificate, and the footage import (demo/importer.js).
 //
 // It exists only when DEMO_OWNER_PASSWORD is set (else /owner is passed to
@@ -89,11 +89,11 @@ function certificateStatus(tlsDir) {
  * o: password, store, attackLog, bans, limits (demo/rateLimit.js: 'owner'),
  * addressOf, net ({ proxy, listedProxies, gateways }), importer, tlsDir,
  * reset() (the demo starts over), resetHours, stateKept, standIn() (its
- * state), log, now, webDir (the page's files).
+ * state), visitors (demo/visitors.js), log, now, webDir (the page's files).
  */
 function createOwnerPage({
   password = '', store, attackLog, bans, limits, addressOf, net = {}, importer = null, tlsDir = '/data/tls', reset = null, resetHours = 24,
-  standIn = () => null, feedbackOn = false, log = () => {}, now = () => Date.now(), webDir = path.join(__dirname, 'owner')
+  standIn = () => null, feedbackOn = false, visitors = null, log = () => {}, now = () => Date.now(), webDir = path.join(__dirname, 'owner')
 }) {
   const enabled = typeof password === 'string' && password.length > 0;
   const want = enabled ? crypto.createHash('sha256').update(password).digest() : null;
@@ -179,6 +179,17 @@ function createOwnerPage({
           bans: bans.list(), demo: { resetHours, resetAvailable: typeof reset === 'function', stateKept: store.writable, stateDir: store.dir, feedback: feedbackOn, standIn: standIn() },
           tls: certificateStatus(tlsDir), you: addressOf(req)
         });
+        return true;
+      }
+      if (p === '/api/owner/visitors' && m === 'GET') {
+        if (!visitors) throw Object.assign(new Error('No visitor activity here.'), { status: 409 });
+        send(res, 200, { visitors: visitors.list(), pages: visitors.pages, you: addressOf(req) });
+        return true;
+      }
+      if (p === '/api/owner/visitor' && m === 'GET') {
+        const ev = visitors?.events(String(url.searchParams.get('ip') || '').slice(0, 80));
+        if (!ev) throw Object.assign(new Error('No such visitor.'), { status: 404 });
+        send(res, 200, { events: ev });
         return true;
       }
       if (p === '/api/owner/log.csv' && m === 'GET') {

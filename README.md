@@ -176,13 +176,24 @@ computer on your network, `https://<server's LAN address>/owner`.
   count per address and kind; each address folds open; at most 5,000 rows,
   30 days; filter, sort, CSV export, and a one-tap ban (30 days; every
   request from a banned address, or its IPv6 /64, is refused).
+- **Visitors** ([`demo/visitors.js`](demo/visitors.js), tracker
+  [`demo/track.js`](demo/track.js)): one row per address, newest first, in a
+  scroll box of about six rows: first and last seen, visits (a new one after
+  30 minutes idle), time actively in the demo (only while the tab is
+  visible, heartbeats every ~15 s, never more than the server's clock),
+  time per interface and swaps, pages opened and the nav pages never opened
+  (a tick for every page), labels of the controls used (never what was
+  typed), changes the demo blocked, device, country (Cloudflare's
+  CF-IPCountry) and feedback sent (a count; the text stays in Discord). A
+  row opens to its last 200 events. At most 2,000 visitors, 30 days. The
+  demo note tells visitors that visits are logged.
 - Visitor counts (distinct addresses a day, kept only as a count), Reset now,
   the certificate and Let's Encrypt's state, and the footage import (below).
 
 ### What is kept across resets
 
 The `demo-state` volume (`/demo-state`, a fixed name:
-`sentry-manager-demo-state`): the attack log, bans, visitor counts, the
+`sentry-manager-demo-state`): the attack log, bans, visitor counts and activity, the
 owner page's sessions, the feedback limits, the certificates, and your
 imported footage. Everything else starts over. Without the volume the demo
 still runs; those are then kept in memory only, until the next reset.
@@ -357,6 +368,7 @@ python3 tools/screens.py https://localhost:9000 shots/   # every page, desktop a
 | `demo/owner.js`, `demo/owner/` | The owner page |
 | `demo/attackLog.js`, `demo/rateLimit.js`, `demo/clientAddress.js` | The attack log, rate limits and bans, the real (Cloudflare-aware) client address |
 | `demo/importer.js` | The owner's footage: upload, sanitize, publish |
+| `demo/visitors.js`, `demo/track.js` | Visitor activity for the owner page, and its tracker in every page |
 | `demo/feedback.js`, `demo/feedback/` | The feedback page and its Discord webhook |
 | `demo/viewerLayout.js` | The Viewer's car-data layout every visitor starts with |
 | `demo/uiSwap.js` | Swap to Horizon UI, per browser |

@@ -1,6 +1,7 @@
 /* The demo's owner page (demo/owner.js), on the manager's own shell.css. */
 body { padding: 24px 16px 48px; }
 .wrap { max-width: 1100px; margin: 0 auto; }
+@media (min-width: 1300px) { .wrap { max-width: 1240px; } }
 .login { width: min(400px, 100%); margin: 12vh auto 0; }
 .login form { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
 .err { color: var(--danger, #ff6b6b); min-height: 20px; font-size: 13.5px; }
@@ -45,4 +46,61 @@ details.group > summary::-webkit-details-marker { display: none; }
   .entries td { display: block; border: 0; padding: 2px 0; }
   .entries td[data-l]::before { content: attr(data-l) ': '; color: var(--muted, #8b95a7); }
   .kv { grid-template-columns: 100px minmax(0, 1fr); }
+}
+
+/* Visitors (demo/visitors.js): about six rows in their own scroll box, so the page stays short */
+.vis-card { padding: 0; overflow: auto; max-height: 470px; overscroll-behavior: contain; }
+.vis { width: 100%; font-size: 13px; border-collapse: separate; border-spacing: 0; }
+.vis thead th { position: sticky; top: 0; z-index: 1; background: var(--panel, #151a23); box-shadow: inset 0 -1px 0 var(--border, #2a3140); }
+.vis th { text-align: left; font-weight: 600; color: var(--muted, #8b95a7); padding: 10px 7px; vertical-align: bottom; line-height: 1.25; }
+.vis th button { all: unset; cursor: pointer; }
+.vis th button:hover, .vis th button:focus-visible { color: #fff; text-decoration: underline; }
+.vis th[aria-sort="ascending"] button::after { content: ' ▲'; font-size: 10px; }
+.vis th[aria-sort="descending"] button::after { content: ' ▼'; font-size: 10px; }
+.vis td { padding: 9px 7px; border-top: 1px solid var(--border, #2a3140); vertical-align: top; }
+.vis tbody tr:first-child td { border-top: 0; }
+.vis tr.vrow { cursor: pointer; }
+.vis tr.vrow:hover td { background: rgba(255, 255, 255, .03); }
+.vis tr.vrow.open td { background: rgba(245, 184, 61, .06); }
+.vis .ip { font-family: var(--mono, monospace); font-weight: 600; white-space: nowrap; }
+.vis td.ipcell { min-width: 120px; }
+.vis td.devcell { min-width: 150px; }
+.vis .sub { color: var(--muted, #8b95a7); font-size: 12px; margin-top: 2px; }
+.vis .yes { color: #6fd08c; font-weight: 700; }
+.vis .bad { color: #ff8a7a; font-weight: 600; }
+.vis .you { font-size: 11px; font-weight: 700; color: #10141c; background: #f5b83d; border-radius: 999px; padding: 1px 7px; margin-left: 6px; font-family: system-ui, sans-serif; }
+.vis td.detail { background: rgba(0, 0, 0, .18); padding: 14px 16px 18px; }
+.vdet { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 22px; }
+.vdet h4 { margin: 0 0 8px; font-size: 13px; }
+.vdet .chips { display: flex; flex-wrap: wrap; gap: 5px; max-height: 150px; overflow: auto; }
+.vdet .chip { font-size: 12px; }
+/* the timeline: about eight events, the rest scrolls */
+.vdet ol { list-style: none; margin: 0; padding: 0 4px 0 0; max-height: 212px; overflow: auto; overscroll-behavior: contain; font-size: 12.5px; }
+.vdet li { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(255, 255, 255, .05); }
+.vdet li time { color: var(--muted, #8b95a7); font-variant-numeric: tabular-nums; }
+.vdet li span { overflow-wrap: anywhere; }
+.vdet .timeline { grid-column: 1 / -1; }
+@media (max-width: 760px) {
+  /* compact cards: the address, then the figures inline */
+  .vis-card { max-height: min(640px, 80vh); background: transparent; border: 0; padding: 0; }
+  .vis thead { display: block; position: sticky; top: 0; z-index: 1; background: var(--bg, #0b0e14); }
+  .vis thead tr { display: flex; flex-wrap: nowrap; gap: 5px; padding: 0 0 8px; overflow-x: auto; }
+  .vis thead th { position: static; box-shadow: none; padding: 3px 8px; border: 1px solid var(--border, #2a3140); border-radius: 999px; font-size: 11.5px; white-space: nowrap; background: var(--panel, #151a23); }
+  .vis tbody, .vis tr { display: block; }
+  .vis tr.vrow { background: var(--panel, #151a23); border: 1px solid var(--border, #2a3140); border-radius: 12px; padding: 6px 9px; margin-bottom: 5px; display: flex; flex-wrap: wrap; gap: 0 8px; font-size: 11.5px; line-height: 1.4; }
+  .vis tr.vrow .ip { font-size: 12.5px; }
+  .vis tr.vrow .sub { font-size: 11px; }
+  .vis tr.vrow.open { border-color: rgba(245, 184, 61, .5); border-radius: 12px 12px 0 0; margin-bottom: 0; }
+  .vis tr.vrow td { display: inline; border: 0; padding: 0; min-width: 0; background: transparent !important; }
+  .vis tr.vrow td.ipcell { flex-basis: 100%; display: flex; align-items: baseline; gap: 8px; }
+  .vis tr.vrow td.ipcell .sub { margin: 0; }
+  .vis tr.vrow td.devcell { flex-basis: 100%; order: 99; color: var(--muted, #8b95a7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vis tr.vrow td[data-l]::before { content: attr(data-l) ' '; color: var(--muted, #8b95a7); font-size: 10.5px; }
+  .vis tr.vrow td.devcell::before, .vis tr.vrow td[data-l="First seen"] { display: none; }
+  .vis tr.drow { margin-bottom: 6px; }
+  .vis tr.drow td { display: block; border: 1px solid rgba(245, 184, 61, .5); border-top: 0; border-radius: 0 0 12px 12px; padding: 10px 12px 12px; }
+  .vdet { gap: 10px; }
+  .vdet .chips { max-height: 96px; }
+  .vdet ol { max-height: 200px; }
+  .vdet li { grid-template-columns: 92px minmax(0, 1fr); gap: 6px; }
 }

@@ -221,7 +221,7 @@ function withBanner(req, res, handler) {
       const html = body.toString('utf8');
       if (html.includes('</head>') && !html.includes('/demo/banner.js')) { // every page of every interface (Viewer and Encoder too)
         const ui = uiSwap.uiOf(req) || 'original';
-        body = Buffer.from(html.replace('</head>', `  <link rel="stylesheet" href="/demo/banner.css">\n  <script src="/demo/device.js" defer></script>\n  <script src="/demo/banner.js" data-ui="${ui}" defer></script>\n</head>`));
+        body = Buffer.from(html.replace('</head>', `  <link rel="stylesheet" href="/demo/banner.css">\n  <script src="/demo/device.js" defer></script>\n  <script src="/demo/track.js" defer></script>\n  <script src="/demo/banner.js" data-ui="${ui}" defer></script>\n</head>`));
       }
     }
     delete headers['content-length'];
@@ -278,8 +278,21 @@ const limits = createRateLimits({
   // changes to the stand-in Sentry USB
   standIn: [20, 60_000],
   // the owner password
-  owner: [10, 15 * 60_000]
+  owner: [10, 15 * 60_000],
+  // visitor activity (demo/track.js posts about every 15 s)
+  track: [40, 60_000]
 });
+// visitor activity for the owner page (demo/visitors.js)
+const { createVisitors, readRoutes } = require('./visitors');
+const { peerAddress } = require('./clientAddress');
+const visitors = createVisitors({ store, routes: readRoutes(APP) });
+const TRACK_JS = fs.readFileSync(path.join(__dirname, 'track.js'));
+// Cloudflare's country header, only on a request that came through Cloudflare
+const countryOf = (req) => {
+  if (!who.proxy.cloudflare || !who.proxy.cloudflare(peerAddress(req, who.proxy))) return '';
+  const c = req.headers['cf-ipcountry'];
+  return typeof c === 'string' ? c.trim().toUpperCase().slice(0, 2) : '';
+};
 let standInRun = null; // demo/sentryUsb/launcher.js, once the demo is set up
 const reset = (why) => {
   say(`reset: ${why}, starting over with fresh demo data`);
@@ -291,7 +304,7 @@ const owner = createOwnerPage({
   password: OWNER_PASSWORD, store, attackLog, bans, limits, addressOf: who.of,
   net: { proxy: who.proxy, listedProxies: who.listedProxies, gateways: readGateways() }, importer,
   tlsDir: path.join(DATA, 'tls'), reset: () => reset('Reset now on the owner page'), resetHours: RESET_HOURS,
-  standIn: () => (standInRun ? { name: 'Demo Model Y', paired: standInRun.paired } : null), feedbackOn: feedback.enabled, log: say
+  standIn: () => (standInRun ? { name: 'Demo Model Y', paired: standInRun.paired } : null), feedbackOn: feedback.enabled, visitors, log: say
 });
 if (owner.enabled) say('owner page on at /owner (local network only)');
 if (feedback.enabled) say('feedback on (Discord)');
@@ -339,6 +352,21 @@ async function layerFirst(req, res, p, url) {
     sendLayer(res, out.status, out.body, out.cookie ? { 'Set-Cookie': out.cookie } : {});
     return true;
   }
+  if (p === '/demo/track.js' && (req.method === 'GET' || req.method === 'HEAD')) {
+    sendLayer(res, 200, TRACK_JS, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return true;
+  }
+  if (p === '/api/demo/track') {
+    // sendBeacon sends no custom header: text/plain or JSON, from the server's view of who and when
+    if (req.method !== 'POST') { req.resume(); sendLayer(res, 405, { ok: false }); return true; }
+    const lim = limits.take('track', ip);
+    if (lim.wait) { req.resume(); sendLayer(res, 429, { ok: false }, { 'Retry-After': String(lim.wait) }); return true; }
+    let body = null;
+    try { body = await readJson(req, 16 * 1024); } catch { body = null; }
+    const out = visitors.record(ip, body, { country: countryOf(req) });
+    sendLayer(res, out.status, out.body);
+    return true;
+  }
   const f = FEEDBACK_FILES[p];
   if (f && (req.method === 'GET' || req.method === 'HEAD')) {
     sendLayer(res, 200, fs.readFileSync(path.join(__dirname, 'feedback', f[0])), { 'Content-Type': f[1], 'Cache-Control': 'no-cache' });
@@ -354,6 +382,7 @@ async function layerFirst(req, res, p, url) {
       try { fields = await readJson(req, 16 * 1024); } catch { fields = null; }
       if (fields) attackLog.inspectFields(req, { contact: fields.contact, page: fields.page });
       const out = await feedback.submit(req, fields);
+      if (out.body?.ok && fields && !fields.website) visitors.feedback(ip);
       sendLayer(res, out.status, out.body);
       return true;
     }
@@ -404,6 +433,7 @@ function gateInner(handler) {
       }
       if (!v.ok) {
         attackLog.note('refused', req, `${req.method} ${p}`);
+        visitors.blocked(who.of(req), `${req.method} ${p}`);
         req.resume();
         return json(res, v.status, { error: v.error, code: 'DEMO' });
       }

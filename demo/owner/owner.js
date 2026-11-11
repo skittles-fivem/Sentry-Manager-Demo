@@ -100,6 +100,92 @@
       rest > 0 ? el('button', { class: 'btn sm ghost more', type: 'button', on: { click: (e) => { tbody.append(...g.entries.slice(ENTRIES_SHOWN).map(row)); e.target.remove(); } } }, `Show ${rest} more`) : null);
   }
 
+  // ---- visitors (demo/visitors.js): labels and pages are visitors' own: text nodes only
+  const dur = (ms) => {
+    const s = Math.round((ms || 0) / 1000);
+    if (s < 60) return `${s} s`;
+    const m = Math.floor(s / 60);
+    return m < 60 ? `${m} m ${s % 60 ? `${s % 60} s` : ''}`.trim() : `${Math.floor(m / 60)} h ${m % 60} m`;
+  };
+  const pageName = (p) => {
+    const [ui, r] = String(p).split(':');
+    return ui === 'studio' ? `Studio ${r === 'encoder' ? 'Encoder' : 'Viewer'}` : `${ui === 'horizon' ? 'Horizon' : 'Original'} · ${r}`;
+  };
+  const stamp = (ms, sec) => (ms ? new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', ...(sec ? { second: '2-digit' } : {}) }) : '-');
+  const sum = (o) => Object.values(o || {}).reduce((n, x) => n + x, 0);
+  const VCOLS = [
+    ['ip', 'Address', (v) => v.ip], ['last', 'Last seen', (v) => v.last], ['first', 'First seen', (v) => v.first], ['visits', 'Visits', (v) => v.visits],
+    ['active', 'Active', (v) => v.active], ['ui', 'Original / Horizon', (v) => v.time.horizon - v.time.original], ['swaps', 'Swaps', (v) => v.swaps],
+    ['pages', 'Pages', (v) => Object.keys(v.pages).length], ['clicks', 'Controls', (v) => sum(v.clicks)], ['blocked', 'Blocked', (v) => v.blocked],
+    ['device', 'Device', (v) => `${v.country} ${v.device}`], ['feedback', 'Feedback', (v) => v.feedback]
+  ];
+  let vSort = { key: 'last', dir: -1 };
+  let vData = null;
+  const vOpen = new Set();
+  async function loadVisitors() {
+    $('vis-err').textContent = '';
+    try { vData = await call('GET', '/api/owner/visitors'); renderVisitors(); } catch (err) { $('vis-err').textContent = err.message; }
+  }
+  function renderVisitors() {
+    const { visitors, pages, you } = vData;
+    const total = pages.length;
+    const col = VCOLS.find((c) => c[0] === vSort.key);
+    const rows = visitors.slice().sort((a, b) => { const x = col[2](a); const y = col[2](b); return (x > y ? 1 : x < y ? -1 : 0) * vSort.dir || b.last - a.last; });
+    const head = el('tr', {}, ...VCOLS.map(([key, label]) => {
+      const th = el('th', { scope: 'col' }, el('button', { type: 'button', on: { click: () => { vSort = { key, dir: vSort.key === key ? -vSort.dir : (key === 'ip' || key === 'device' ? 1 : -1) }; renderVisitors(); } } }, label));
+      if (vSort.key === key) th.setAttribute('aria-sort', vSort.dir > 0 ? 'ascending' : 'descending');
+      return th;
+    }));
+    const body = el('tbody');
+    for (const v of rows) {
+      const seen = Object.keys(v.pages).length;
+      const tr = el('tr', { class: `vrow${vOpen.has(v.ip) ? ' open' : ''}`, tabindex: '0', 'aria-expanded': String(vOpen.has(v.ip)) },
+        el('td', { class: 'ipcell' }, el('span', { class: 'ip' }, v.ip), v.ip === you ? el('span', { class: 'you' }, 'you') : null, el('div', { class: 'sub' }, `${v.events} events`)),
+        el('td', { class: 'num', 'data-l': 'Last seen' }, stamp(v.last)),
+        el('td', { class: 'num', 'data-l': 'First seen' }, stamp(v.first)),
+        el('td', { class: 'num', 'data-l': 'Visits' }, v.visits),
+        el('td', { class: 'num', 'data-l': 'Active' }, dur(v.active)),
+        el('td', { class: 'num', 'data-l': 'Original / Horizon' }, `${dur(v.time.original)} / ${dur(v.time.horizon)}`),
+        el('td', { class: 'num', 'data-l': 'Swaps' }, v.swaps ? `yes, ${v.swaps}×` : 'no'),
+        el('td', { class: 'num', 'data-l': 'Pages' }, v.sawAll ? el('span', { class: 'yes', title: 'Saw every page' }, `✓ all ${seen}`) : `${seen} · ${v.never.length} not seen`),
+        el('td', { class: 'num', 'data-l': 'Controls' }, sum(v.clicks)),
+        el('td', { class: 'num', 'data-l': 'Blocked' }, v.blocked ? el('span', { class: 'bad' }, v.blocked) : '0'),
+        el('td', { class: 'devcell', 'data-l': 'Device' }, v.country ? `${v.country} · ` : '', v.device || '-'),
+        el('td', { class: 'num', 'data-l': 'Feedback' }, v.feedback ? el('span', { class: 'yes' }, `sent ${v.feedback > 1 ? `${v.feedback}×` : ''}`.trim()) : 'no'));
+      const toggle = () => { if (vOpen.has(v.ip)) vOpen.delete(v.ip); else vOpen.add(v.ip); renderVisitors(); };
+      tr.addEventListener('click', toggle);
+      tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+      body.append(tr);
+      if (vOpen.has(v.ip)) body.append(el('tr', { class: 'drow' }, detail(v, total)));
+    }
+    $('vis').replaceChildren(el('thead', {}, head), body);
+    if (!rows.length) $('vis').replaceChildren(el('tbody', {}, el('tr', {}, el('td', { class: 'muted' }, 'No visitors yet.'))));
+    $('vis-sum').textContent = `${rows.length} visitor${rows.length === 1 ? '' : 's'} (2,000 at most, 30 days), newest first. Time counts only while the tab is visible; controls are their labels, never what was typed. Tap a row for its timeline.`;
+  }
+  function detail(v, total) {
+    const chips = (entries) => el('div', { class: 'chips' }, ...(entries.length ? entries.map(([t, n]) => el('span', { class: 'chip' }, n ? `${t} ${n}` : t)) : [el('span', { class: 'muted small' }, 'none')]));
+    const clicks = Object.entries(v.clicks).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const [kind, ...l] = k.split('|'); return [`${l.join('|')} (${kind})`, n]; });
+    const list = el('ol', {}, el('li', {}, el('span', { class: 'muted' }, 'Loading…')));
+    call('GET', `/api/owner/visitor?ip=${encodeURIComponent(v.ip)}`).then((d) => {
+      const what = (e) => {
+        if (e.type === 'view') return `opened ${pageName(e.detail)}`;
+        if (e.type === 'click') { const [kind, ...l] = e.detail.split('|'); return `${kind} “${l.join('|')}”`; }
+        if (e.type === 'swap') return `swapped to ${e.detail === 'horizon' ? 'Horizon' : 'the original'}`;
+        if (e.type === 'blocked') return `blocked by the demo: ${e.detail}`;
+        if (e.type === 'feedback') return 'sent feedback';
+        if (e.type === 'visit') return `visit ${e.detail} started`;
+        if (e.type === 'device') return `device: ${e.detail}`;
+        return `${e.type} ${e.detail}`;
+      };
+      list.replaceChildren(...d.events.slice().reverse().map((e) => el('li', { class: e.type === 'blocked' ? 'bad' : '' }, el('time', {}, stamp(e.t, true)), el('span', {}, what(e)))));
+    }).catch((err) => list.replaceChildren(el('li', {}, err.message)));
+    return el('td', { class: 'detail', colspan: String(VCOLS.length) }, el('div', { class: 'vdet' },
+      el('div', {}, el('h4', {}, `Pages opened (${Object.keys(v.pages).length} of ${total})`), chips(Object.entries(v.pages).sort((a, b) => b[1] - a[1]).map(([p, n]) => [pageName(p), n]))),
+      el('div', {}, el('h4', {}, v.sawAll ? 'Never opened: none, saw every page ✓' : `Never opened (${v.never.length})`), chips(v.never.map((p) => [pageName(p), 0]))),
+      el('div', {}, el('h4', {}, `Controls used (${sum(v.clicks)})`), chips(clicks)),
+      el('div', { class: 'timeline' }, el('h4', {}, `Timeline (last ${v.events} events, newest first)`), list)));
+  }
+
   // ---- footage import
   function renderImport(s) {
     const up = s.upload || {};
@@ -207,6 +293,7 @@
       $('page').hidden = false;
       render(s);
       loadImport();
+      loadVisitors();
     } catch (err) {
       if (err.status === 401) { $('page').hidden = true; $('login').hidden = false; return; }
       $('err').textContent = err.message;

@@ -9,7 +9,7 @@
   const UI = document.currentScript?.dataset.ui === 'horizon' ? 'horizon' : 'original';
   const SWAP = UI === 'horizon' ? 'Swap to original UI' : 'Swap to Horizon UI';
   const swapButton = `<button type="button" class="sentry-demo-swap" data-ui="${UI === 'horizon' ? 'original' : 'horizon'}">${SWAP}</button>`;
-  const TEXT = '<b>Demo</b> · real highway drives · changes are turned off';
+  const TEXT = '<b>Demo</b> · real highway drives · changes are turned off · visits are logged';
   const LINK = 'https://github.com/skittles-fivem/Sentry-Manager';
 
   const card = document.createElement('div');

@@ -166,3 +166,7 @@
 @media (max-width: 760px) {
   .sentry-demo-wm { right: 8px; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); padding: 4px 8px 5px; font-size: 11px; }
 }
+/* Horizon on a phone: its open pill sits higher (above the round button): the watermark goes above it */
+@media (max-width: 760px) {
+  .sentry-demo-note.free:not(.folded) ~ .sentry-demo-wm { bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
+}
