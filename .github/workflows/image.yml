@@ -58,7 +58,7 @@ jobs:
 
       - name: Smoke test
         run: |
-          docker run -d --name demo -p 9000:9000 --read-only --user 1000:1000 --cap-drop ALL \
+          docker run -d --name demo -e DEMO_BUILTIN_FOOTAGE=on -p 9000:9000 --read-only --user 1000:1000 --cap-drop ALL \
             --tmpfs /data:uid=1000,gid=1000 --tmpfs /footage:uid=1000,gid=1000 -e DEMO_CONVERT=off -e DEMO_OWNER_PASSWORD=ci demo:test
           for i in $(seq 1 90); do docker logs demo 2>&1 | grep -q '\[demo\] ready' && break; sleep 2; done
           docker logs demo 2>&1 | grep '\[demo\]'
