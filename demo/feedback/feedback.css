@@ -1,0 +1,16 @@
+/* The demo's feedback page (demo/feedback.js), on the manager's own shell.css. */
+body { padding: 24px 16px 48px; }
+.fb { width: min(560px, 100%); margin: 6vh auto 0; padding: 22px; }
+.fb h1 { margin: 6px 0 4px; }
+.fb form { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.fb textarea { resize: vertical; min-height: 140px; }
+.fb-count { align-self: flex-end; }
+.fb-kicker { display: flex; align-items: center; gap: 8px; color: #f5b83d; font-weight: 700; font-size: 12.5px; margin: 0; }
+.sentry-demo-dot { width: 8px; height: 8px; border-radius: 50%; background: #f5b83d; display: inline-block; }
+.fb-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.fb-note { min-height: 20px; margin: 0; font-size: 13.5px; }
+.fb-note.ok { color: #6fd08c; }
+.fb-note.bad { color: var(--danger, #ff6b6b); }
+.fb-off { color: #f5b83d; font-weight: 600; }
+.fb-actions { display: flex; flex-wrap: wrap; gap: 10px; }
