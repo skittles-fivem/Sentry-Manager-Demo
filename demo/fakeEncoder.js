@@ -9,27 +9,32 @@
 // snapshot and live progress, the devices list, GET /api/nodes, /api/jobs,
 // and the encoder, GPU and power parts of /api/stats).
 //
-// A job of DEMO_FAKE_CLIPS clips (default 720: two hours of driving, six
-// cameras) takes about DEMO_FAKE_MINUTES (default 45), shows its summary for
-// three minutes, and the next one starts.
+// A job of DEMO_FAKE_CLIPS clips (default 2400: about 6.5 hours of driving, six
+// cameras) takes about 45 minutes at the GPUs' real speeds (DEMO_FAKE_MINUTES
+// stretches it to another length), shows its summary for three minutes, and
+// the next one starts.
 
 const crypto = require('crypto');
 
+const FPS = 36;
+const CLIP_US = 60_000_000;
+// how long one minute-long clip (36 fps, 2160 frames) takes on one of a GPU's encodes, from its frames per second
+const secsAt = (fpsPerEncode) => (60 * FPS) / fpsPerEncode;
 const GPU = 'pci:0000:01:00.0';
 const NODES = [
   {
     id: 'g4r4g3pc0001', name: 'Garage PC', host: '192.168.1.40', cpuName: 'AMD Ryzen 7 5800X',
-    gpu: { id: 'pci:0000:2b:00.0', kind: 'nvidia', name: 'NVIDIA GeForce RTX 3060', h265: 'hevc_nvenc', av1: null }, slots: 4, mean: 58, idleW: 62, perClipW: 22
+    gpu: { id: 'pci:0000:2b:00.0', kind: 'nvidia', name: 'NVIDIA GeForce RTX 3060', h265: 'hevc_nvenc', av1: null }, slots: 4, mean: secsAt(140), idleW: 62, perClipW: 22
   },
   {
     id: 'o0ff1cen4s01', name: 'Office NAS', host: '192.168.1.25', cpuName: 'Intel Core i5-12400',
-    gpu: { id: 'pci:0000:00:02.0', kind: 'dri', name: 'Intel Arc A380', h265: 'hevc_qsv', av1: 'av1_qsv' }, slots: 3, mean: 66, idleW: 28, perClipW: 11
+    gpu: { id: 'pci:0000:00:02.0', kind: 'dri', name: 'Intel Arc A380', h265: 'hevc_qsv', av1: 'av1_qsv' }, slots: 3, mean: secsAt(150), idleW: 28, perClipW: 11
   }
 ];
-const LOCAL = { slots: 6, mean: 44, name: 'NVIDIA GeForce RTX 4070', encoder: 'hevc_nvenc' };
+// realistic H.265 speeds for Tesla's clips with decoding on the GPU: an RTX 4070 about 900 fps over its
+// 6 encodes, the RTX 3060 about 560 over 4, the Arc A380 about 450 over 3 (the front camera's bigger clip takes longer)
+const LOCAL = { slots: 6, mean: secsAt(150), name: 'NVIDIA GeForce RTX 4070', encoder: 'hevc_nvenc' };
 const CAMS = [['front', 1], ['back', 0.5], ['left_repeater', 0.5], ['right_repeater', 0.5], ['left_pillar', 0.5], ['right_pillar', 0.5]];
-const FPS = 36;
-const CLIP_US = 60_000_000;
 
 const two = (n) => String(n).padStart(2, '0');
 const keyOf = (ms) => {
@@ -44,15 +49,17 @@ function formatBytes(n) {
   return `${u === 0 ? v : v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2)} ${units[u]}`;
 }
 
-function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(process.env.DEMO_FAKE_CLIPS || 720), minutes = Number(process.env.DEMO_FAKE_MINUTES || 45), initialProgress = 0.35 }) {
-  // every lane slot, and how long a clip takes on it (scaled so the job lasts `minutes`)
+function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(process.env.DEMO_FAKE_CLIPS || 2400), minutes = process.env.DEMO_FAKE_MINUTES ? Number(process.env.DEMO_FAKE_MINUTES) : null, initialProgress = 0.35 }) {
+  // every lane slot, and how long a clip takes on it (at the GPUs' real speeds, or scaled so the job lasts `minutes` when given)
   const lanes = [
     { device: GPU, concurrency: LOCAL.slots, mean: LOCAL.mean, encoder: LOCAL.encoder, node: null, gpuName: LOCAL.name },
     ...NODES.map((n) => ({ device: `node:${n.id}@${n.gpu.id}`, concurrency: n.slots, mean: n.mean, encoder: n.gpu.h265, node: n, gpuName: n.gpu.name }))
   ];
   const perSecond = lanes.reduce((s, l) => s + l.concurrency / l.mean, 0);
   // clips / (perSecond / scale) = the job's length in seconds
-  const scale = (minutes * 60 * perSecond) / clips;
+  const scale = minutes ? (minutes * 60 * perSecond) / clips : 1;
+  // how long the whole job takes (for the start a third of the way in)
+  const jobMinutes = minutes || clips / perSecond / 60;
   const slots = lanes.flatMap((lane) => Array.from({ length: lane.concurrency }, (_, i) => ({ lane, i, item: null, start: 0, dur: 0, pid: 2000 + Math.floor(Math.random() * 60000) })));
 
   let job = null;
@@ -109,7 +116,7 @@ function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(
         finish(fakeSlot, now);
       }
       job._next = done;
-      const took = prefill * minutes * 60_000;
+      const took = prefill * jobMinutes * 60_000;
       job.createdAt = now - took;
       job._wh = (95 + LOCAL.slots * 14) * took / 3_600_000;
       job._nodeWh = NODES.reduce((w, n) => w + n.slots * n.perClipW, 0) * took / 3_600_000;
@@ -187,7 +194,7 @@ function createFakeEncoder({ sourceRoot, vehicleId, vehicleName, clips = Number(
         it.state = 'processing';
         s.item = it;
         s.start = now;
-        s.dur = Math.max(8, s.lane.mean * scale * (0.8 + Math.random() * 0.4)) * 1000;
+        s.dur = Math.max(4, s.lane.mean * scale * (s.item.camera === 'front' ? 1.5 : 0.9) * (0.85 + Math.random() * 0.3)) * 1000;
         job.activeItemId = it.id;
         changed = true;
       }
