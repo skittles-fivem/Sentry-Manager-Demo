@@ -114,7 +114,16 @@
     clearTimeout(timer);
     if (!folded && !onDash()) timer = setTimeout(() => fold(true), 8000);
   };
-  addEventListener('hashchange', () => { if (onDash()) fold(false); else if (!pill.classList.contains('folded')) fold(false); });
+  // the Viewer (the Original's is the Studio page, /studio/, in a frame): the note starts folded, a small tab on the right edge (demo/banner.css), so it
+  // never sits on the playback controls (Play and the timeline are along the bottom there)
+  const onViewer = () => /^#\/?(viewer|watch|play)\b/.test(location.hash) || location.pathname.startsWith('/studio/');
+  const where = () => pill.classList.toggle('on-viewer', onViewer());
+  addEventListener('hashchange', () => {
+    where();
+    if (onDash()) fold(false);
+    else if (onViewer()) fold(true);
+    else if (!pill.classList.contains('folded')) fold(false);
+  });
   tab.addEventListener('click', () => fold(!pill.classList.contains('folded')));
   pill.querySelector('.sentry-demo-close').addEventListener('click', () => { clearTimeout(timer); pill.classList.add('folded'); tab.setAttribute('aria-expanded', 'false'); });
 
@@ -127,7 +136,8 @@
     }
     if (!document.body.contains(pill)) {
       document.body.appendChild(pill);
-      fold(false);
+      where();
+      fold(onViewer());
     }
     if (!document.body.contains(wm)) document.body.appendChild(wm);
     // an interface with no sidebar (Horizon): the pill on every screen
