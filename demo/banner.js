@@ -35,7 +35,7 @@
   wm.href = 'https://www.lttstore.com/';
   wm.target = '_blank';
   wm.rel = 'noopener noreferrer';
-  wm.innerHTML = 'Not sponsored by <b>LTTSTORE.COM</b> <span class="sentry-demo-wm-arrow" aria-hidden="true">↗</span>';
+  wm.innerHTML = 'Not sponsored by <b>LTTSTORE.COM</b>&nbsp;<span class="sentry-demo-wm-arrow" aria-hidden="true">↗</span>';
 
   const tab = pill.querySelector('.sentry-demo-tab');
   // this browser only: a cookie, then the page again in the other interface
@@ -116,7 +116,9 @@
     pill.classList.toggle('folded', folded);
     tab.setAttribute('aria-expanded', String(!folded));
     clearTimeout(timer);
-    if (!folded && !onDash()) timer = setTimeout(() => fold(true), 8000);
+    // on a phone the open note covers the page, so it folds on the dashboard too
+    const phone = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
+    if (!folded && (!onDash() || phone)) timer = setTimeout(() => fold(true), 8000);
   };
   // the Viewer: its playback controls run along the bottom, so the note starts
   // folded there and the watermark goes in the sidebar's demo card (or, with no
@@ -159,20 +161,34 @@
     // an interface with no sidebar (Horizon): the pill on every screen
     pill.classList.toggle('free', !document.querySelector('.side-card'));
   };
-  // exports are pretend (demo/fakeExport.js): the Download link only says so
+  // No downloads on the demo: a link that saves a file (a download link, a
+  // file made in the page, or one of the app's download addresses) only says
+  // so. The server refuses them too (demo/preload.js: a response sent as a
+  // file comes back empty).
+  const DL = /\/api\/(?:exports\/[^/]+\/file|logs\/download|logs\/archive\/|support-bundle|security\/ca\.crt|stats\/export|can\/files\/|can\/export|ui-packs\/[^/]+\.zip)|[?&]download=1/;
+  const isDownload = (a) => a.hasAttribute('download') || /^(?:blob|data):/i.test(a.getAttribute('href') || '') || DL.test(a.getAttribute('href') || '');
   let note = null;
-  document.addEventListener('click', (e) => {
-    const a = e.target?.closest?.('a[href]');
-    if (!a || !/\/api\/exports\/[^/]+\/file(?:$|\?)/.test(a.getAttribute('href') || '')) return;
-    e.preventDefault();
-    e.stopPropagation();
+  const noDownload = () => {
     if (!note) { note = document.createElement('div'); note.className = 'sentry-demo-toast'; note.setAttribute('role', 'status'); }
-    note.textContent = 'Downloads are turned off in the demo. In your own Sentry Six Manager this saves the video.';
+    note.textContent = 'Downloads are turned off in the demo. In your own Sentry Six Manager this saves the file.';
     document.body.appendChild(note);
     note.classList.remove('gone');
     clearTimeout(note.t);
     note.t = setTimeout(() => note.classList.add('gone'), 4500);
+  };
+  document.addEventListener('click', (e) => {
+    const a = e.target?.closest?.('a[href]');
+    if (!a || !isDownload(a)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    noDownload();
   }, true);
+  // a file link clicked from a script without being in the page
+  const click = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function demoClick() {
+    if (this.getAttribute('href') && isDownload(this)) { noDownload(); return; }
+    return click.call(this);
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { place(); fitViewer(); });
   else { place(); fitViewer(); }
   // The Viewer (Sentry Studio): its car-data bar lies over the cameras, at

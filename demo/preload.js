@@ -21,6 +21,7 @@ const { seed } = require('./seed');
 const { createStore } = require('./store');
 const { createImporter } = require('./importer');
 const { createFakeExports } = require('./fakeExport');
+const { noDownloads } = require('./noDownloads');
 // exports are pretend: they show progress and finish, and never download (demo/fakeExport.js)
 const fakeExports = createFakeExports();
 
@@ -412,6 +413,8 @@ function gateInner(handler) {
       return handler(req, res);
     }
     const p = url.pathname;
+    // no downloads for visitors (demo/noDownloads.js); the owner page is not the app's
+    if (!internalReq(req) && !p.startsWith('/owner') && !p.startsWith('/api/owner/')) noDownloads(req, res, () => visitors.blocked(who.of(req), `download ${req.method} ${p}`));
     if (!internalReq(req) && await layerFirst(req, res, p, url)) return undefined;
     if (p === '/demo/banner.js') return asset(res, 'text/javascript; charset=utf-8', BANNER_JS);
     if (p === '/demo/banner.css') return asset(res, 'text/css; charset=utf-8', BANNER_CSS);
