@@ -5,3 +5,6 @@ seed.tar
 node_modules/
 shots/
 __pycache__/
+.env
+demo-state/
+highway_footage_with_can/

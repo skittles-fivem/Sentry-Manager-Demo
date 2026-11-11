@@ -15,17 +15,51 @@ newest manager, so the demo always shows the current version.
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/skittles-fivem/Sentry-Manager-Demo/main/docker-compose.yml
+curl -fsSL -o .env https://raw.githubusercontent.com/skittles-fivem/Sentry-Manager-Demo/main/.env.example
+# fill in .env: the owner password, the feedback webhook, Let's Encrypt, Cloudflare
 docker compose up -d
 docker logs -f sentry-manager-demo     # "[demo] ready" when it is set up
 ```
 
-Open `https://<server>:9000` and continue past the one-time certificate
-warning. Everything lives in memory and starts over every 24 hours and at
-every restart.
+Open `https://<server>` (ports 80 and 443 both go to the app's port 9000).
+Without Let's Encrypt, continue past the one-time certificate warning. The
+demo lives in memory and starts over every 24 hours and at every restart;
+only the `demo-state` volume is kept (below).
 
 ### On the internet
 
-Put it behind a reverse proxy that does HTTPS with a real certificate:
+**HTTPS built in (Let's Encrypt).** The manager gets and renews its own
+Let's Encrypt certificate when `TLS_ACME_DOMAIN` is set:
+
+1. Point the name's DNS at the server and publish ports 80 and 443 to the
+   container's 9000 (`80:9000` and `443:9000`, as in the compose file):
+   Let's Encrypt checks `http://<name>/.well-known/acme-challenge/…`, which
+   the app answers on the same port; everything else on port 80 is sent to
+   `https://`.
+2. Set `TLS_ACME_DOMAIN=demo.example.com` (and `TLS_ACME_EMAIL` if you want
+   Let's Encrypt's notices) in `.env`, then `docker compose up -d`.
+3. **Behind Cloudflare** (orange cloud): SSL/TLS mode **Full** until the
+   certificate is issued (Cloudflare accepts the self-signed one meanwhile),
+   then **Full (strict)**. Set `TRUST_CLOUDFLARE=1`, so the demo sees each
+   visitor's own address (`CF-Connecting-IP`, believed only from Cloudflare's
+   published ranges) for its attack log, bans and rate limits.
+
+The certificates (and the app's own CA) are kept in the `demo-state` volume,
+`/demo-state/tls`: the manager keeps them in `/data/tls`, which the demo
+starts over at every reset, so the demo links that folder into the volume
+(`DEMO_KEEP_TLS=off` stops it). Restarts and resets never ask Let's Encrypt
+again, so its rate limits are never hit.
+
+**This needs a manager image with Let's Encrypt.** It is on the manager's
+release branch and not yet in its `latest` image, which this demo is built
+on; with an image that lacks it, `TLS_ACME_DOMAIN` does nothing and the
+self-signed certificate is served (Cloudflare's **Full** works with that).
+To use it before it is in `latest`, build the demo on a manager image that
+has it: `docker build --build-arg MANAGER_TAG=<tag> -t sentry-manager-demo .`
+(or the `build:` lines in `docker-compose.yml`). The stand-in Sentry USB
+needs the same (below).
+
+**Or** put it behind a reverse proxy that does HTTPS with a real certificate:
 
 - **Caddy:** `demo.example.com { reverse_proxy https://127.0.0.1:9000 { transport http { tls_insecure_skip_verify } } }`
 - **Cloudflare Tunnel:** service `https://localhost:9000` with *No TLS Verify* on.
@@ -40,8 +74,9 @@ through the app's API on `localhost`.
 
 | | |
 | --- | --- |
-| Can | Browse every page; play footage; scrub; see telemetry, the map and CAN data; read Drives, Moments and stats; watch the Encoder and Nodes at work; make an export and download it (at most 2 waiting or rendering at once, for everyone) |
-| Cannot | Delete, move, protect, trash or restore anything; start, pause or cancel conversions; change any setting, vehicle, policy, place or account; upload an interface; turn on CAN uploads; sign out |
+| Can | Swap their own browser to the Horizon interface and back; browse every page; play footage; scrub; see telemetry, the map and CAN data; read Drives, Moments and stats; watch the Encoder and Nodes at work; make an export and download it (at most 2 waiting or rendering at once, for everyone) |
+| Can, on the demo's own Sentry USB | Change its settings, reboot it, shut it down, sync, re-run setup, check for and install updates, delete snapshots, back it up, gather diagnostics: the stand-in Pi carries them out, and forgets them at the reset |
+| Cannot | Delete, move, protect, trash or restore anything; start, pause or cancel conversions; change any setting, vehicle, policy, place or account; pair, rename or unpair a Sentry USB; upload an interface; turn on CAN uploads; sign out |
 | Never shown | The server's logs, sessions, certificates and CAN tokens (empty stand-ins), and the setup code (there is none) |
 
 ### The conversion on the Encoder page is pretend
@@ -56,6 +91,97 @@ server's power, the Nodes page shows both nodes online and busy, and Jobs
 lists it with two earlier runs. It takes about 45 minutes, shows its summary
 for three minutes, and starts again. Nothing is encoded and no node exists:
 the demo answers those pages' requests itself, in the shapes the app uses.
+
+### The Sentry USB page has a live "Demo Model Y"
+
+A stand-in Sentry USB, the Pi in the car
+([`demo/sentryUsb/`](demo/sentryUsb/)), starts with the demo, as a child
+process once the app is set up. It pairs the way a person does in Settings:
+the demo opens a pairing slot through the app's API on localhost, and the
+stand-in proves the code over the app's device port with the real link
+protocol (v2, then its link key). Its settings file, logs, snapshots and
+backups are in `/data`, so they start over at every reset.
+
+Visitors may change it, and only it: [`demo/policy.js`](demo/policy.js)
+lets through exactly the app's `/api/sentryusb/<its id>/proxy/...` routes
+the stand-in carries out (settings saves, reboot, shut down, sync, setup,
+updates, snapshot deletes, backups, diagnostics), 20 a minute per visitor.
+It applies the Pi's own rules: only settable keys change, values are
+checked, secrets are masked and kept when sent empty, and every change is
+logged as the Pi logs it. A reboot comes back in 20 to 30 seconds, a shut
+down after 3 minutes. It needs a manager image with the Sentry USB link
+(the manager's release branch, `MANAGER_TAG`); without it the page is not
+there and the stand-in does not start. `DEMO_SENTRYUSB=off` leaves it out.
+
+### Swap to Horizon UI
+
+The demo note has a **Swap to Horizon UI** button (and then **Swap to
+original UI**): that browser alone is shown Horizon, the synthwave interface
+pack that comes with the app, on every page. It is a cookie
+(`demo_ui=horizon`, HttpOnly, SameSite=Strict, Secure), set by
+`POST /demo/ui {"ui": "horizon" | "original"}`; the demo makes the app's
+interface packs answer Horizon for requests that carry it
+([`demo/uiSwap.js`](demo/uiSwap.js)), the way the app's own `/original`
+cookie gives one browser the built-in interface. The interface chosen for
+everyone is never changed, and `PUT /api/ui-packs/active` stays refused, so
+no visitor changes what the others see.
+
+### The Viewer starts with the owner's car-data layout
+
+[`demo/viewerLayout.js`](demo/viewerLayout.js) saves it for the demo
+account at every reset: three 3-in-1 blocks (Battery temp, HV Battery
+Current, Battery power; Battery Coolant Temp, 12V Battery Voltage, 12V
+Battery Current; Outside Temperature, Cabin Temperature, Steering), then
+the *Every stat* List with *Changing only* ticked, in °F and mph. A
+visitor's own rearranging is answered as saved and forgotten.
+
+### Feedback
+
+The demo note links a feedback page (`/demo/feedback`): a message (2,000
+characters at most), an optional name or contact, and the page it came from.
+The demo sends it to the Discord webhook in `DEMO_FEEDBACK_WEBHOOK`
+([`demo/feedback.js`](demo/feedback.js)); without one, the page says
+feedback is off. The webhook's address never leaves the server: not in a
+page, an answer or a log, and the browser only hears "Thanks, sent" or
+"Couldn't send, try again later".
+
+- One embed, with `allowed_mentions` empty (nobody is pinged), the text's
+  Discord markdown escaped, mentions broken and links wrapped in `<…>` (no
+  previews); the time, the page and the visitor's address, shortened and
+  hashed (`DEMO_FEEDBACK_SHOW_IP=1`: the whole address).
+- At most 3 an hour and 10 a day from one address, 60 an hour in all; a
+  hidden field only bots fill; at least 3 seconds on the page; no empty or
+  link-only messages. Each hit is noted in the attack log.
+- It is the only network call the demo makes: to
+  `https://discord.com/api/webhooks/...` or `https://discordapp.com/api/webhooks/...`
+  only, with an 8-second timeout, never following a redirect.
+
+### The owner page
+
+`/owner` is for whoever runs the demo, with `DEMO_OWNER_PASSWORD`
+([`demo/owner.js`](demo/owner.js)). It opens only from a local address
+(LAN or loopback) and over HTTPS; never through Cloudflare (a request with
+Cloudflare's headers or from its addresses), and never from the container's
+Docker gateway, which every visitor through Docker's port proxy looks like.
+Anyone else is sent to `/`, and the attempt is noted. Open it from another
+computer on your network, `https://<server's LAN address>/owner`.
+
+- **The attack log:** visits to `/owner`, scanner paths, exploit patterns,
+  writes the demo refused, rate-limit hits, wrong owner passwords, feedback
+  spam and bans, by real address (Cloudflare-aware). Repeats collapse into a
+  count per address and kind; each address folds open; at most 5,000 rows,
+  30 days; filter, sort, CSV export, and a one-tap ban (30 days; every
+  request from a banned address, or its IPv6 /64, is refused).
+- Visitor counts (distinct addresses a day, kept only as a count), Reset now,
+  the certificate and Let's Encrypt's state, and the footage import (below).
+
+### What is kept across resets
+
+The `demo-state` volume (`/demo-state`, a fixed name:
+`sentry-manager-demo-state`): the attack log, bans, visitor counts, the
+owner page's sessions, the feedback limits, the certificates, and your
+imported footage. Everything else starts over. Without the volume the demo
+still runs; those are then kept in memory only, until the next reset.
 
 Anything not on the allowed list in [`demo/policy.js`](demo/policy.js) is
 refused, so a new feature in the manager that changes something stays off in
@@ -77,6 +203,18 @@ footage folder by mistake, it refuses to start instead.
 | `DEMO_FAKE_MINUTES` | `45` | How long a pretend job takes |
 | `DEMO_CONVERT` | `off` | A real H.265 conversion of the demo footage after each reset (default `on` when the pretend one is off) |
 | `DEMO_CONVERT_PARALLEL` | `1` | Clips that conversion encodes at once |
+| `DEMO_SENTRYUSB` | `on` | The stand-in Sentry USB visitors may change (`off`: none) |
+| `DEMO_OWNER_PASSWORD` | | The owner page's password (from `.env`); empty: no owner page |
+| `DEMO_FEEDBACK_WEBHOOK` | | The Discord webhook for feedback (from `.env`); empty: feedback off |
+| `DEMO_FEEDBACK_SHOW_IP` | `0` | `1`: the visitor's whole address in Discord |
+| `TLS_ACME_DOMAIN`, `TLS_ACME_EMAIL` | | Let's Encrypt for this name (a manager image with it, see "On the internet") |
+| `TRUST_CLOUDFLARE` | `0` | `1` behind Cloudflare's proxy: the visitor is `CF-Connecting-IP`, only from Cloudflare's ranges (`CLOUDFLARE_IPS` replaces them) |
+| `DEMO_STATE` | `/demo-state` | What survives the resets |
+| `DEMO_KEEP_TLS` | `on` | Keep the certificates in `DEMO_STATE` (`off`: they start over with the demo) |
+| `DEMO_RATE_PER_MINUTE` | `3000` | Requests a minute from one address before it is told to wait |
+
+The owner password and the webhook are read once at start and taken out of
+the environment, so neither the app nor anything it starts sees them.
 
 Every [manager setting](https://github.com/skittles-fivem/Sentry-Manager/blob/main/docs/settings.md)
 works too (`TZ`, GPUs for the Encoder, and so on).
@@ -111,6 +249,47 @@ third). Re-encoding would lose Tesla's per-frame telemetry and timing, so
 [`transplant.js`](tools/blur/transplant.js) copies them back from the
 original, byte for byte: the dashboard, map and sync work as before. A
 minute where any camera cannot be done exactly is removed, all six cameras.
+
+### Your own footage, from the owner page
+
+The owner page takes your `highway_footage_with_can` folder and puts it
+through the same pipeline before anyone sees it
+([`demo/importer.js`](demo/importer.js)):
+
+```
+footage/YYYY-MM-DD/<YYYY-MM-DD_HH-MM-SS>-{front,back,left_repeater,right_repeater}.mp4   (local time, CST)
+can_logs/*.log.xz, *.log.xz.json (canbridge-columns-xz/2), ids.csv, manifest.json
+highway_stretches.csv, README.txt
+```
+
+1. **Upload it** (choose the folder: chunked, resumable, as large as the
+   volume's free space; only those paths are taken, into
+   `/demo-state/import`), **or mount it** read-only at `/demo-import` (the
+   commented line in `docker-compose.yml`). `README.txt` and
+   `highway_stretches.csv` are never uploaded or read: they name places.
+2. **Sanitize:** `tools/sanitize.js` runs in the container with
+   `--tz America/Chicago` and writes a new seed into `/demo-state/pending`:
+   highway minutes only, no home, work or stops, dates moved, no VIN. Add
+   your Home and Work coordinates (`lat,lon[,km]`) as places to keep out;
+   they stay in the volume and are never published.
+3. **License plates:** the blur needs the tools image, so the page says the
+   plates are not blurred and shows the exact commands to blur the pending
+   seed on the server (it then sees that every clip was re-encoded):
+
+   ```bash
+   docker build -t sentry-demo-tools tools/blur      # once, in a checkout of this repo
+   docker run --rm --user 1000:1000 -v sentry-manager-demo-state:/state sentry-demo-tools python3 /tools/blur/blur.py /state/pending/footage
+   ```
+
+   Or blur the folder on your computer (below), tick "blurred before I
+   uploaded it" and upload it again. Publishing unblurred footage needs an
+   explicit tick.
+4. **Publish:** only what the demo reads (the clips and `event.json`, the
+   CAN logs and sidecars, `map.json`, `vehicles.json`) is copied into
+   `/demo-state/seed`, which the demo then uses instead of its built-in drives
+   from the next reset (Reset now). Never the report with the real times,
+   `README.txt`, the coordinates or `highway_stretches.csv`. "Use the
+   built-in drives again" goes back.
 
 ### Updating the drives
 
@@ -155,11 +334,12 @@ gh release create seed seed.tar --title "Demo drives" --notes "Highway-only demo
 ## Development
 
 ```bash
-npm test                                         # the demo policy
+npm test                                         # the demo layer (MANAGER_ROOT=<manager checkout> for the Sentry USB tests)
 node tools/synthetic.js <manager checkout> seed/footage/demo-car 4   # test footage
 docker build -t manager-demo:dev .
 docker run --rm -p 9000:9000 --read-only --user 1000:1000 --cap-drop ALL \
-  --tmpfs /data:uid=1000,gid=1000 --tmpfs /footage:uid=1000,gid=1000 manager-demo:dev
+  --tmpfs /data:uid=1000,gid=1000 --tmpfs /footage:uid=1000,gid=1000 -v demo-dev-state:/demo-state \
+  -e DEMO_OWNER_PASSWORD=dev manager-demo:dev
 python3 tools/screens.py https://localhost:9000 shots/   # every page, desktop and phone
 ```
 
@@ -167,6 +347,14 @@ python3 tools/screens.py https://localhost:9000 shots/   # every page, desktop a
 | --- | --- |
 | `demo/preload.js` | Loaded into the app (`NODE_OPTIONS`): signs everyone in as `demo`, puts the gate in front of the app, starts fresh, resets |
 | `demo/policy.js` | What a visitor may do |
+| `demo/sentryUsb/` | The stand-in Sentry USB: the Pi's rules and actions (`standIn.js`), the link (`link.js`), its process (`child.js`), pairing it (`launcher.js`) |
+| `demo/owner.js`, `demo/owner/` | The owner page |
+| `demo/attackLog.js`, `demo/rateLimit.js`, `demo/clientAddress.js` | The attack log, rate limits and bans, the real (Cloudflare-aware) client address |
+| `demo/importer.js` | The owner's footage: upload, sanitize, publish |
+| `demo/feedback.js`, `demo/feedback/` | The feedback page and its Discord webhook |
+| `demo/viewerLayout.js` | The Viewer's car-data layout every visitor starts with |
+| `demo/uiSwap.js` | Swap to Horizon UI, per browser |
+| `demo/store.js` | What is kept across resets (`/demo-state`) |
 | `demo/seed.js`, `demo/seedCan.js` | Adds the vehicle, scans and uploads the CAN data, all through the app's own API |
 | `demo/fakeEncoder.js` | The pretend conversion and nodes |
 | `demo/banner.*` | The demo note on the pages |

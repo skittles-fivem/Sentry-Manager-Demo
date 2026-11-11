@@ -1,22 +1,32 @@
 # Sentry Six Manager demo: the real app, no sign-in, nothing can be changed,
-# highway-only demo drives. Everything resets every 24 hours (and on restart).
+# highway-only demo drives. Everything resets every 24 hours (and on restart);
+# the attack log, bans, imported footage and certificates are kept in the
+# demo-state volume.
 #
+#   cp .env.example .env     # the owner password, feedback, Let's Encrypt, Cloudflare
 #   docker compose up -d
-#   open https://<server>:9000  (one-time certificate warning)
+#   open https://<server>     (or http://, sent on to https://)
 #
-# Behind a reverse proxy that does HTTPS (Caddy, Traefik, nginx, Cloudflare
-# Tunnel), point it at https://<this host>:9000 and skip certificate checks
-# for that hop, or set TLS_MODE=off and TRUST_PROXY=1 and point it at
-# http://<this host>:9000. See README.md.
+# Ports 80 and 443 both go to the app's one port, 9000, which answers plain
+# HTTP (Let's Encrypt's check, else a redirect) and HTTPS on it. Behind
+# Cloudflare: SSL/TLS mode Full until Let's Encrypt has issued the
+# certificate, then Full (strict). See README.md, "On the internet".
 
 services:
   sentry-manager-demo:
     image: ghcr.io/skittles-fivem/sentry-manager-demo:latest
+    # Let's Encrypt (TLS_ACME_DOMAIN) and the stand-in Sentry USB need a manager
+    # image that has them; until the published one does, build on one that does:
+    # build:
+    #   context: .
+    #   args:
+    #     MANAGER_TAG: latest
     container_name: sentry-manager-demo
     hostname: demo
     restart: unless-stopped
     ports:
-      - "9000:9000"
+      - "80:9000"
+      - "443:9000"
     environment:
       TZ: America/Chicago
       # hours between resets; the app starts over with fresh demo data
@@ -25,10 +35,33 @@ services:
       DEMO_EXPORT_QUEUE: "2"
       # the Encoder's pretend conversion over this server and two nodes (off: none)
       DEMO_FAKE_ENCODER: "on"
-    # Nothing is kept: data and footage live in memory and start fresh.
+      # the stand-in Sentry USB visitors may change (off: none)
+      DEMO_SENTRYUSB: "on"
+      # From .env (see .env.example); empty turns each off.
+      # the owner page at /owner: local network only, with this password
+      DEMO_OWNER_PASSWORD: ${DEMO_OWNER_PASSWORD:-}
+      # visitors' feedback, sent to this Discord webhook (never shown to anyone)
+      DEMO_FEEDBACK_WEBHOOK: ${DEMO_FEEDBACK_WEBHOOK:-}
+      DEMO_FEEDBACK_SHOW_IP: ${DEMO_FEEDBACK_SHOW_IP:-0}
+      # Let's Encrypt for this name; its certificates are kept in demo-state
+      TLS_ACME_DOMAIN: ${TLS_ACME_DOMAIN:-}
+      TLS_ACME_EMAIL: ${TLS_ACME_EMAIL:-}
+      # behind Cloudflare's proxy: the visitor's address is CF-Connecting-IP
+      # (only from Cloudflare's own ranges), for the attack log, bans and limits
+      TRUST_CLOUDFLARE: ${TRUST_CLOUDFLARE:-0}
+    # Data and footage live in memory and start fresh at every reset.
     tmpfs:
       - /data:uid=1000,gid=1000,size=2g
       - /footage:uid=1000,gid=1000,size=8g
+    volumes:
+      # Kept across resets: the attack log, bans, visitor counts, feedback
+      # limits, the owner's imported footage (import, sanitized, published)
+      # and the certificates (Let's Encrypt has rate limits). Give it room for
+      # the footage you upload.
+      - demo-state:/demo-state
+      # Optional: your highway_footage_with_can folder, read-only, instead of
+      # uploading it on the owner page (it goes through the same pipeline)
+      # - ./highway_footage_with_can:/demo-import:ro
     # A public box: no privileges at all, a read-only image, bounded use.
     read_only: true
     user: "1000:1000"
@@ -39,3 +72,8 @@ services:
     pids_limit: 512
     mem_limit: 3g
     cpus: 2
+
+volumes:
+  demo-state:
+    # a fixed name, so the owner page's blur command can name it
+    name: sentry-manager-demo-state

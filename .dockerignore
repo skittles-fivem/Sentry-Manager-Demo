@@ -2,3 +2,7 @@ report.private.json
 .git
 shots
 seed.tar
+.env
+.env.*
+demo-state
+highway_footage_with_can
