@@ -1,0 +1,48 @@
+/* The demo's owner page (demo/owner.js), on the manager's own shell.css. */
+body { padding: 24px 16px 48px; }
+.wrap { max-width: 1100px; margin: 0 auto; }
+.login { width: min(400px, 100%); margin: 12vh auto 0; }
+.login form { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.err { color: var(--danger, #ff6b6b); min-height: 20px; font-size: 13.5px; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.tile { background: var(--panel, #151a23); border: 1px solid var(--border, #2a3140); border-radius: 14px; padding: 14px 16px; }
+.tile b { display: block; font-size: 24px; font-weight: 700; }
+.tile span { color: var(--muted, #8b95a7); font-size: 12.5px; }
+.info { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.card { padding: 18px; margin-bottom: 16px; }
+.info .card { margin: 0; }
+.card h4 { margin: 18px 0 8px; font-size: 14px; }
+.kv { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 6px 12px; margin-top: 12px; font-size: 13.5px; }
+.kv dt { color: var(--muted, #8b95a7); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+.row .field, .row .input { min-width: 0; width: 100%; box-sizing: border-box; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.check { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 13.5px; }
+textarea.input { font-family: var(--mono, monospace); min-height: 70px; resize: vertical; }
+.progress { height: 8px; border-radius: 4px; background: var(--border, #2a3140); overflow: hidden; margin-top: 12px; }
+.progress span { display: block; height: 100%; width: 0; background: #f5b83d; transition: width .2s; }
+.out { max-height: 220px; overflow: auto; font-size: 12px; background: rgba(0, 0, 0, .3); padding: 10px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cmd { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; }
+.cmd code { flex: 1; font-size: 12px; background: rgba(0, 0, 0, .3); padding: 8px 10px; border-radius: 8px; overflow-wrap: anywhere; }
+.warn { color: #f5b83d; font-weight: 600; }
+.section { margin: 26px 0 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+.bar .input { width: auto; min-height: 38px; }
+details.group { padding: 14px 16px; }
+details.group > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
+details.group > summary::-webkit-details-marker { display: none; }
+.addr { font-family: var(--mono, monospace); font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.kinds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.entries { width: 100%; margin-top: 12px; font-size: 13px; }
+.entries td.sample, .entries td.agent { font-family: var(--mono, monospace); font-size: 12px; overflow-wrap: anywhere; }
+.more { margin-top: 10px; }
+@media (max-width: 640px) {
+  .entries thead { display: none; }
+  .entries tr { display: block; border-bottom: 1px solid var(--border, #2a3140); padding: 8px 0; }
+  .entries td { display: block; border: 0; padding: 2px 0; }
+  .entries td[data-l]::before { content: attr(data-l) ': '; color: var(--muted, #8b95a7); }
+  .kv { grid-template-columns: 100px minmax(0, 1fr); }
+}

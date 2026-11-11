@@ -1,0 +1,263 @@
+'use strict';
+
+// The demo's owner page (demo/owner.js on the server). Every string from the
+// attack log was typed by someone on the internet: it only ever goes into
+// text nodes, never into HTML.
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') n.className = v;
+      else if (k === 'on') for (const [ev, fn] of Object.entries(v)) n.addEventListener(ev, fn);
+      else n.setAttribute(k, v);
+    }
+    for (const k of kids) if (k !== null && k !== undefined && k !== false) n.append(k instanceof Node ? k : document.createTextNode(String(k)));
+    return n;
+  };
+  const KIND = { 'owner-probe': 'Owner probe', scan: 'Scanner', exploit: 'Exploit', refused: 'Refused write', 'rate-limit': 'Rate limit', login: 'Wrong password', spam: 'Feedback spam', malformed: 'Malformed', ban: 'Ban' };
+  const TONE = { exploit: 'red', ban: 'red', 'owner-probe': 'amber', login: 'amber', scan: 'blue', 'rate-limit': 'violet', spam: 'violet', refused: 'slate', malformed: 'slate' };
+  const when = (ms) => (ms ? new Date(ms).toLocaleString() : '-');
+  const gb = (n) => (n == null ? '-' : n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.round(n / 1e6)} MB`);
+  const GROUPS_SHOWN = 50;
+  const ENTRIES_SHOWN = 12;
+  let sort = 'newest';
+  let shown = GROUPS_SHOWN;
+
+  async function call(method, url, body, raw) {
+    const res = await fetch(url, {
+      method, credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'sentry-six-manager', ...(body && !raw ? { 'Content-Type': 'application/json' } : {}), ...(raw ? { 'Content-Type': 'application/octet-stream' } : {}) },
+      body: raw || (body ? JSON.stringify(body) : undefined)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(data.error || `Error ${res.status}`), { status: res.status, data });
+    return data;
+  }
+  const query = () => {
+    const q = new URLSearchParams();
+    if ($('kind').value) q.set('kind', $('kind').value);
+    q.set('sort', sort);
+    return q.toString();
+  };
+  const kv = (dl, rows) => dl.replaceChildren(...rows.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v ?? '-')]));
+
+  function render(s) {
+    $('you').textContent = `You are at ${s.you}. Addresses are the real client's (Cloudflare-aware).`;
+    const st = s.stats || {};
+    const tiles = [[s.visitors.today, 'visitors today'], [st.addresses || 0, 'addresses in the log'], [st.last24h || 0, 'seen in the log in 24 h'], [s.bans.length, 'bans in force'], [st.rows || 0, 'log rows (5,000 at most)']];
+    $('tiles').replaceChildren(...tiles.map(([n, label]) => el('div', { class: 'tile' }, el('b', {}, n), el('span', {}, label))));
+    const days = Object.entries(s.visitors.days || {}).sort().slice(-7).map(([d, n]) => `${d.slice(5)}: ${n}`).join(' · ');
+    const si = s.demo.standIn;
+    kv($('demo'), [
+      ['Resets every', s.demo.resetHours ? `${s.demo.resetHours} h` : 'only on restart'],
+      ['Kept across resets', s.demo.stateKept ? `yes (${s.demo.stateDir})` : 'no: mount the /demo-state volume (the log, bans and certificates are lost at each reset)'],
+      ['Visitors, 7 days', days || '-'],
+      ['Sentry USB', si ? `${si.name}: ${si.paired ? 'paired' : 'pairing'}` : 'off (needs a manager image with the Sentry USB link)'],
+      ['Feedback', s.demo.feedback ? 'on (Discord)' : 'off (DEMO_FEEDBACK_WEBHOOK not set)']
+    ]);
+    $('reset').disabled = !s.demo.resetAvailable;
+    const t = s.tls || {};
+    kv($('cert'), [
+      ['Source', t.source], ['Issuer', t.issuer], ['Names', (t.names || []).join(', ')], ['Expires', t.validTo],
+      ["Let's Encrypt", t.acmeDomain ? `for ${t.acmeDomain}${t.acme?.lastError ? `: ${t.acme.lastError}` : t.acme?.issuedAt ? ', issued' : ', waiting'}` : 'off (TLS_ACME_DOMAIN not set)'],
+      ['Kept across resets', t.kept ? 'yes (/demo-state/tls)' : 'no']
+    ]);
+    $('csv').href = `/api/owner/log.csv?${query()}`;
+    // bans
+    $('bans').replaceChildren(s.bans.length ? el('table', { class: 'table entries' }, el('tbody', {}, ...s.bans.map((b) => el('tr', {},
+      el('td', { class: 'sample', 'data-l': 'Address' }, b.key), el('td', { 'data-l': 'Until' }, when(b.until)), el('td', { 'data-l': 'Why' }, b.reason),
+      el('td', {}, el('button', { class: 'btn sm ghost', type: 'button', on: { click: async (e) => { e.target.disabled = true; await call('POST', '/api/owner/unban', { key: b.key }).catch(() => {}); load(); } } }, 'Lift')))))) : el('p', { class: 'muted small' }, 'No bans.'));
+    // the log, grouped by address, each group folded
+    const banned = new Set(s.bans.map((b) => b.key));
+    if (!s.log.length) { $('groups').replaceChildren(el('p', { class: 'muted' }, 'Nothing in the log.')); return; }
+    const groups = s.log.slice(0, shown).map((g) => group(g, banned));
+    if (s.log.length > shown) groups.push(el('button', { class: 'btn sm ghost more', type: 'button', on: { click: () => { shown += GROUPS_SHOWN; render(s); } } }, `Show ${Math.min(GROUPS_SHOWN, s.log.length - shown)} more of ${s.log.length - shown}`));
+    $('groups').replaceChildren(...groups);
+  }
+
+  function group(g, banned) {
+    const isBanned = banned.has(g.address) || banned.has(`${g.address}`);
+    const ban = el('button', { class: 'btn sm danger', type: 'button' }, isBanned ? 'Banned' : 'Ban');
+    ban.disabled = isBanned;
+    ban.addEventListener('click', async (e) => {
+      e.preventDefault();
+      ban.disabled = true;
+      try { await call('POST', '/api/owner/ban', { address: g.address }); ban.textContent = 'Banned'; load(); } catch (err) { ban.disabled = false; $('err').textContent = err.message; }
+    });
+    const row = (e) => el('tr', {},
+      el('td', { 'data-l': 'Kind' }, el('span', { class: `chip ${TONE[e.kind] || ''}` }, KIND[e.kind] || e.kind)),
+      el('td', { 'data-l': 'Count' }, e.count), el('td', { 'data-l': 'First' }, when(e.firstSeen)), el('td', { 'data-l': 'Last' }, when(e.lastSeen)),
+      el('td', { class: 'sample', 'data-l': 'Sample' }, e.sample || '-'), el('td', { class: 'agent', 'data-l': 'Agent' }, e.agent || '-'));
+    const tbody = el('tbody', {}, ...g.entries.slice(0, ENTRIES_SHOWN).map(row));
+    const rest = g.entries.length - ENTRIES_SHOWN;
+    return el('details', { class: 'card group' },
+      el('summary', {},
+        el('div', {}, el('div', { class: 'addr' }, g.address), el('div', { class: 'muted small' }, `${g.count} attempt${g.count === 1 ? '' : 's'} · first ${when(g.firstSeen)} · last ${when(g.lastSeen)}`),
+          el('div', { class: 'kinds' }, ...Object.entries(g.kinds).map(([k, n]) => el('span', { class: `chip ${TONE[k] || ''}` }, `${KIND[k] || k} ${n}`)))),
+        ban),
+      el('table', { class: 'table entries' }, el('thead', {}, el('tr', {}, ...['Kind', 'Count', 'First seen', 'Last seen', 'Sample', 'User agent'].map((h) => el('th', {}, h)))), tbody),
+      rest > 0 ? el('button', { class: 'btn sm ghost more', type: 'button', on: { click: (e) => { tbody.append(...g.entries.slice(ENTRIES_SHOWN).map(row)); e.target.remove(); } } }, `Show ${rest} more`) : null);
+  }
+
+  // ---- footage import
+  function renderImport(s) {
+    const up = s.upload || {};
+    const mount = s.mount || {};
+    kv($('imp-state'), [
+      ['Uploaded', `${up.clips || 0} clips, ${up.logs || 0} CAN logs, ${gb(up.bytes)}${up.partial ? ` (${up.partial} unfinished: choose the folder again to resume)` : ''}`],
+      ['/demo-import', mount.present ? `${mount.clips} clips, ${mount.logs} CAN logs (read-only)` : 'not mounted'],
+      ['Free on /demo-state', gb(s.free)],
+      ['The demo shows', s.seed.active === 'imported' ? `your footage: ${s.seed.minutes} minutes${s.seed.blurred ? '' : ', plates NOT blurred'} (published ${when(s.seed.at)})` : 'the built-in drives'],
+      ['Places kept out', s.avoidSaved ? `${s.avoidSaved} saved` : 'none besides the drives\' own stops']
+    ]);
+    const j = s.job || {};
+    if (j.state && j.state !== 'idle') {
+      $('job-out').hidden = false;
+      $('job-out').textContent = `${j.state === 'running' ? 'Sanitizing…' : j.state === 'done' ? `Done: ${j.kept} highway minutes.` : `Failed: ${j.error}`}\n${(j.lines || []).join('\n')}`;
+    }
+    $('process').disabled = j.state === 'running';
+    const p = s.pending || {};
+    const box = $('pending');
+    if (!p.exists) {
+      box.replaceChildren(...[el('p', { class: 'muted small' }, 'Nothing sanitized yet.'),
+        s.seed.active === 'imported' ? el('div', { class: 'actions' }, el('button', { class: 'btn sm ghost', type: 'button', on: { click: () => act('/api/owner/import/unpublish', {}, 'Back to the built-in drives from the next reset.') } }, 'Use the built-in drives again')) : null].filter(Boolean));
+      return;
+    }
+    const b = p.blur || {};
+    const blurLine = p.blurred
+      ? el('p', {}, b.done ? `License plates blurred: all ${b.total} clips re-encoded since sanitizing.` : 'Blurred before upload (your word).')
+      : el('p', { class: 'warn' }, `License plates are not blurred${b.changed ? ` (${b.changed} of ${b.total} clips re-encoded so far)` : ''}.`);
+    const tick = el('input', { type: 'checkbox', id: 'as-is' });
+    const cmd = (text) => el('div', { class: 'cmd' }, el('code', {}, text), el('button', { class: 'btn sm ghost', type: 'button', on: { click: () => navigator.clipboard?.writeText(text) } }, 'Copy'));
+    box.replaceChildren(...[
+      el('p', {}, `${p.minutes} highway minutes ready (sanitized ${when(p.at)}).`),
+      blurLine,
+      p.blurred ? null : el('div', {},
+        el('p', { class: 'small' }, 'To blur them on the server first (the tools image, built once from this repo; several minutes per minute of footage), then come back here and publish:'),
+        cmd(s.buildTools), cmd(s.blurCommand),
+        el('p', { class: 'muted small' }, 'Or blur the folder on your computer (README, "Updating the drives"), tick "blurred before I uploaded it", and upload it again.'),
+        el('label', { class: 'check' }, tick, ' Publish as is, with license plates not blurred')),
+      el('div', { class: 'actions' },
+        el('button', { class: 'btn sm solid', type: 'button', on: { click: () => act('/api/owner/import/publish', { unblurred: p.blurred ? false : tick.checked }, 'Published: the demo shows it from the next reset (Reset now).') } }, 'Publish'),
+        el('button', { class: 'btn sm ghost', type: 'button', on: { click: () => act('/api/owner/import/discard', { what: 'pending' }, 'Discarded.') } }, 'Discard'),
+        s.seed.active === 'imported' ? el('button', { class: 'btn sm ghost', type: 'button', on: { click: () => act('/api/owner/import/unpublish', {}, 'Back to the built-in drives from the next reset.') } }, 'Use the built-in drives again') : null),
+      el('p', { class: 'small', id: 'pub-note', 'aria-live': 'polite' })].filter(Boolean));
+  }
+  async function act(url, body, done) {
+    try {
+      await call('POST', url, body);
+      loadImport().then(() => { const n = $('pub-note') || $('up-note'); if (n) n.textContent = done; });
+    } catch (err) {
+      const n = $('pub-note') || $('up-note');
+      if (n) n.textContent = err.message;
+    }
+  }
+
+  /** The folder's path for a picked file: from footage/ or can_logs/ on (the top folder's name dropped). */
+  function relOf(file) {
+    const parts = String(file.webkitRelativePath || file.name).split('/');
+    const at = parts.findIndex((x) => x === 'footage' || x === 'can_logs');
+    return at >= 0 ? parts.slice(at).join('/') : parts[parts.length - 1];
+  }
+  const NEVER = /^(README\.txt|highway_stretches\.csv)$/i;
+  async function upload(files) {
+    const note = $('up-note');
+    const bar = $('up-bar');
+    const picked = [...files].map((f) => ({ f, rel: relOf(f) }));
+    const skipped = picked.filter((x) => NEVER.test(x.rel)).map((x) => x.rel);
+    const wanted = picked.filter((x) => !NEVER.test(x.rel));
+    let plan;
+    try {
+      plan = await call('POST', '/api/owner/import/plan', { files: wanted.map((x) => ({ path: x.rel, size: x.f.size })) });
+    } catch (err) { note.textContent = err.message; return; }
+    const byPath = new Map(wanted.map((x) => [x.rel, x.f]));
+    const total = plan.files.reduce((n, f) => n + f.size, 0) || 1;
+    let done = plan.files.reduce((n, f) => n + f.have, 0);
+    const extra = [skipped.length ? `${skipped.join(', ')} not uploaded (never: they name places)` : '', plan.refused.length ? `${plan.refused.length} other files not part of the folder` : ''].filter(Boolean).join('; ');
+    if (plan.free != null && plan.need > plan.free) { note.textContent = `Not enough free disk on the server: ${gb(plan.need)} needed, ${gb(plan.free)} free.`; return; }
+    bar.hidden = false;
+    const show = (msg) => { bar.firstElementChild.style.width = `${Math.round((done / total) * 100)}%`; note.textContent = `${msg} ${gb(done)} of ${gb(total)}.${extra ? ` ${extra}.` : ''}`; };
+    for (const f of plan.files) {
+      let have = f.have;
+      const file = byPath.get(f.path);
+      while (have < f.size) {
+        const slice = file.slice(have, Math.min(f.size, have + 8 * 1024 * 1024));
+        try {
+          const r = await call('PUT', `/api/owner/import/chunk?path=${encodeURIComponent(f.path)}&offset=${have}&size=${f.size}`, null, slice);
+          done += r.have - have;
+          have = r.have;
+        } catch (err) {
+          if (err.status === 409 && Number.isFinite(err.data?.have)) { done += err.data.have - have; have = err.data.have; continue; }
+          show(`Stopped (${err.message}); choose the folder again to resume.`);
+          return;
+        }
+        show('Uploading…');
+      }
+    }
+    show('Uploaded.');
+    loadImport();
+  }
+
+  async function load() {
+    $('err').textContent = '';
+    try {
+      const s = await call('GET', `/api/owner/state?${query()}`);
+      $('login').hidden = true;
+      $('page').hidden = false;
+      render(s);
+      loadImport();
+    } catch (err) {
+      if (err.status === 401) { $('page').hidden = true; $('login').hidden = false; return; }
+      $('err').textContent = err.message;
+    }
+  }
+  let polling = null;
+  async function loadImport() {
+    try {
+      const s = await call('GET', '/api/owner/import');
+      renderImport(s);
+      clearTimeout(polling);
+      if (s.job?.state === 'running') polling = setTimeout(loadImport, 2000);
+    } catch (err) {
+      $('imp-state').replaceChildren(el('dd', {}, err.message));
+    }
+  }
+
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('login-err').textContent = '';
+    try {
+      await call('POST', '/api/owner/login', { password: e.target.password.value });
+      e.target.reset();
+      load();
+    } catch (err) { $('login-err').textContent = err.message; }
+  });
+  $('logout').addEventListener('click', async () => { await call('POST', '/api/owner/logout').catch(() => {}); load(); });
+  $('kind').addEventListener('change', () => { shown = GROUPS_SHOWN; load(); });
+  $('refresh').addEventListener('click', load);
+  for (const b of document.querySelectorAll('[data-sort]')) {
+    b.addEventListener('click', () => {
+      sort = b.dataset.sort;
+      for (const x of document.querySelectorAll('[data-sort]')) x.classList.toggle('on', x === b);
+      load();
+    });
+  }
+  $('reset').addEventListener('click', async () => {
+    if (!confirm('Reset the demo now? Everything visitors changed goes back to the start, and the app restarts (about a minute).')) return;
+    $('reset').disabled = true;
+    try { await call('POST', '/api/owner/reset'); $('reset-note').textContent = 'Restarting…'; setTimeout(load, 20000); } catch (err) { $('reset-note').textContent = err.message; }
+  });
+  $('folder').addEventListener('change', (e) => { if (e.target.files.length) upload(e.target.files); e.target.value = ''; });
+  $('discard-upload').addEventListener('click', () => { if (confirm('Delete everything uploaded?')) act('/api/owner/import/discard', { what: 'upload' }, 'Upload deleted.'); });
+  $('process').addEventListener('click', async () => {
+    $('process').disabled = true;
+    try {
+      const avoid = $('avoid').value;
+      await call('POST', '/api/owner/import/process', { source: $('source').value, name: $('car-name').value, maxMinutes: Number($('max-min').value), blurredBefore: $('blurred-before').checked, ...(avoid.trim() ? { avoid } : {}) });
+      $('avoid').value = '';
+    } catch (err) { $('job-out').hidden = false; $('job-out').textContent = err.message; }
+    loadImport();
+  });
+  load();
+})();
