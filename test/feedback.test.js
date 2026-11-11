@@ -98,7 +98,7 @@ test('a fake Discord gets the expected JSON: one embed, no mentions allowed, tex
     const e = g.body.embeds[0];
     assert.equal(e.description, 'The map is great @\u200beveryone \\*\\*really\\*\\* <https://example.com/x>');
     const f = Object.fromEntries(e.fields.map((x) => [x.name, x.value]));
-    assert.equal(f.Page, '/\\#/viewer');
+    assert.equal(f.Page, undefined); // where it was sent from is not shown
     assert.equal(f.Contact, 'Sam \\<@\u200b42\\>');
     assert.match(f.From, /^203\.0\.113\.x \\#[0-9a-f]{8}$/);
     assert.match(f.Time, /^2026\\-11\\-11 12\\:00\\:05 UTC$/);

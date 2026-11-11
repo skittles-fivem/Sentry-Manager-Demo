@@ -121,7 +121,6 @@ function deviceLines(device) {
 /** The JSON Discord gets. */
 function payload({ message, contact, page, address, at, device = null, userAgent = '' }) {
   const fields = [
-    { name: 'Page', value: discordSafe(page, MAX_PAGE) || '-', inline: true },
     { name: 'From', value: escapeText(address), inline: true },
     { name: 'Time', value: escapeText(new Date(at).toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')), inline: true }
   ];
