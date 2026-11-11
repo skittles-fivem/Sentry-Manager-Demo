@@ -239,7 +239,26 @@
     addEventListener('resize', soon);
     soon();
   }
+  // Horizon on a phone or tablet: its row of page tabs (the tuner) sticks 64 px
+  // down, but the header above it is taller on most phones, so scrolling slid
+  // the tabs half under it. The tabs stick right under the header instead,
+  // whatever its height.
+  function stickTabs() {
+    if (embedded || stickTabs.on) return;
+    const head = document.querySelector('header.dash');
+    const tabs = document.querySelector('nav.tuner');
+    if (!head || !tabs) return;
+    stickTabs.on = true;
+    const fit = () => {
+      const sticky = getComputedStyle(tabs).position === 'sticky' && getComputedStyle(head).position === 'sticky';
+      if (sticky) tabs.style.setProperty('top', `${Math.round(head.getBoundingClientRect().height)}px`);
+      else tabs.style.removeProperty('top');
+    };
+    new ResizeObserver(fit).observe(head);
+    addEventListener('resize', fit);
+    fit();
+  }
   // the shell draws its sidebar after start: place the card once it is there
-  new MutationObserver(() => { if (!card.isConnected && document.querySelector('.side-card')) place(); })
+  new MutationObserver(() => { if (!card.isConnected && document.querySelector('.side-card')) place(); if (!stickTabs.on) stickTabs(); })
     .observe(document.documentElement, { childList: true, subtree: true });
 })();
