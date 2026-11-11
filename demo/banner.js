@@ -29,6 +29,14 @@
     + `<a class="sentry-demo-link" href="${LINK}" target="_blank" rel="noopener">Get it</a>`
     + '<a class="sentry-demo-feedback" href="/demo/feedback">Feedback</a>'
     + '<button type="button" class="sentry-demo-close" aria-label="Fold the demo note">×</button>';
+  // the watermark, bottom right on every page
+  const wm = document.createElement('a');
+  wm.className = 'sentry-demo-wm';
+  wm.href = 'https://www.lttstore.com/';
+  wm.target = '_blank';
+  wm.rel = 'noopener noreferrer';
+  wm.innerHTML = 'Not sponsored by <b>LTTSTORE.COM</b> <span class="sentry-demo-wm-arrow" aria-hidden="true">↗</span>';
+
   const tab = pill.querySelector('.sentry-demo-tab');
   // this browser only: a cookie, then the page again in the other interface
   for (const b of [card, pill].map((n) => n.querySelector('.sentry-demo-swap'))) {
@@ -121,6 +129,7 @@
       document.body.appendChild(pill);
       fold(false);
     }
+    if (!document.body.contains(wm)) document.body.appendChild(wm);
     // an interface with no sidebar (Horizon): the pill on every screen
     pill.classList.toggle('free', !document.querySelector('.side-card'));
   };
