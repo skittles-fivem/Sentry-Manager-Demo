@@ -78,9 +78,12 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') { if (!since) since = Date.now(); } else { beat(); send(true); }
     });
-    setInterval(() => { beat(); send(false); }, 15_000);
+    // "still here", for the owner page's Live now (also from a hidden tab: the browser may slow it to once a minute)
+    const here = () => { const p = page(); add({ type: 'here', page: p, visible: document.visibilityState === 'visible' }); };
+    setInterval(() => { beat(); here(); send(false); }, 15_000);
+    setTimeout(() => { here(); send(false); }, 1500);
   }
-  addEventListener('pagehide', () => { if (top) beat(); send(true); });
+  addEventListener('pagehide', () => { if (top) { beat(); add({ type: 'leave' }); } send(true); });
 
   // ---- start: the page, the device once per tab
   view();

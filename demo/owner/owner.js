@@ -126,8 +126,23 @@
     $('vis-err').textContent = '';
     try { vData = await call('GET', '/api/owner/visitors'); renderVisitors(); } catch (err) { $('vis-err').textContent = err.message; }
   }
+  function renderLive(live, you) {
+    $('live-n').textContent = live.length ? `(${live.length})` : '';
+    if (!live.length) { $('live').replaceChildren(el('p', { class: 'muted small' }, 'Nobody has the demo open right now.')); return; }
+    $('live').replaceChildren(el('div', { class: 'live-list' }, ...live.sort((a, b) => b.since - a.since).map((v) => {
+      const row = el('div', { class: 'live-row', tabindex: '0', title: 'Show in the list below' },
+        el('div', {}, el('span', { class: 'ip' }, v.ip), v.ip === you ? el('span', { class: 'you' }, 'you') : null),
+        el('div', { class: 'where' }, 'on ', el('b', {}, pageName(v.pageNow) || '-'), v.away ? el('span', { class: 'away' }, ' · tab in the background') : null),
+        el('div', { class: 'muted small' }, `here ${dur(Math.max(0, Date.now() - v.since))} · ${sum(v.clicks)} controls${v.swaps ? ` · swapped ${v.swaps}×` : ''}`),
+        el('div', { class: 'dev muted small' }, v.country ? `${v.country} · ` : '', v.device || ''));
+      return row;
+    })));
+  }
   function renderVisitors() {
-    const { visitors, pages, you } = vData;
+    const { pages, you } = vData;
+    const live = vData.visitors.filter((v) => v.live);
+    renderLive(live, you);
+    const visitors = vData.visitors.filter((v) => !v.live);
     const total = pages.length;
     const col = VCOLS.find((c) => c[0] === vSort.key);
     const rows = visitors.slice().sort((a, b) => { const x = col[2](a); const y = col[2](b); return (x > y ? 1 : x < y ? -1 : 0) * vSort.dir || b.last - a.last; });
@@ -160,7 +175,7 @@
     }
     $('vis').replaceChildren(el('thead', {}, head), body);
     if (!rows.length) $('vis').replaceChildren(el('tbody', {}, el('tr', {}, el('td', { class: 'muted' }, 'No visitors yet.'))));
-    $('vis-sum').textContent = `${rows.length} visitor${rows.length === 1 ? '' : 's'} (2,000 at most, 30 days), newest first. Time counts only while the tab is visible; controls are their labels, never what was typed. Tap a row for its timeline.`;
+    $('vis-sum').textContent = `${live.length} live now, ${rows.length} earlier visitor${rows.length === 1 ? '' : 's'} (2,000 at most, 30 days), newest first. Time counts only while the tab is visible; controls are their labels, never what was typed. Tap a row for its timeline.`;
   }
   function detail(v, total) {
     const chips = (entries) => el('div', { class: 'chips' }, ...(entries.length ? entries.map(([t, n]) => el('span', { class: 'chip' }, n ? `${t} ${n}` : t)) : [el('span', { class: 'muted small' }, 'none')]));
@@ -186,6 +201,7 @@
       el('div', { class: 'timeline' }, el('h4', {}, `Timeline (last ${v.events} events, newest first)`), list)));
   }
 
+  let liveTimer = null;
   async function load() {
     $('err').textContent = '';
     try {
@@ -194,6 +210,8 @@
       $('page').hidden = false;
       render(s);
       loadVisitors();
+      clearInterval(liveTimer);
+      liveTimer = setInterval(() => { if (document.visibilityState === 'visible') loadVisitors(); }, 10_000);
     } catch (err) {
       if (err.status === 401) { $('page').hidden = true; $('login').hidden = false; return; }
       $('err').textContent = err.message;

@@ -27,7 +27,9 @@ const MAX_LABEL = 60;
 const MAX_PAGES = 80;
 const MAX_CLICKS = 150;
 const UIS = ['original', 'horizon'];
-const TYPES = ['view', 'beat', 'click', 'swap', 'device'];
+const TYPES = ['view', 'beat', 'click', 'swap', 'device', 'here', 'leave'];
+// a visitor counts as live while the tracker was heard from this recently (a hidden tab may only say so once a minute)
+const LIVE_MS = 75_000;
 const CONTROL_KINDS = ['button', 'link', 'input', 'select', 'tab'];
 
 // The main pages of each interface (their nav), read from the app when it is
@@ -97,6 +99,8 @@ function validEvent(e, pages) {
     }
     case 'swap': return UIS.includes(e.to) ? { type: 'swap', to: e.to } : null;
     case 'device': { const device = deviceSummary(e.device); return device ? { type: 'device', device } : null; }
+    case 'here': return typeof e.page === 'string' && pages.has(e.page) ? { type: 'here', page: e.page, visible: e.visible === true } : null;
+    case 'leave': return { type: 'leave' };
     default: return null;
   }
 }
@@ -174,8 +178,13 @@ function createVisitors({ store, routes = ROUTES, now = () => Date.now(), maxVis
     const r = touch(ip, true);
     const t = now();
     if (/^[A-Z]{2}$/.test(country) && country !== 'XX') r.country = country;
+    r.heardAt = t;
     for (const e of events) {
-      if (e.type === 'beat') {
+      if (e.type === 'here') {
+        r.here = { page: e.page, visible: e.visible, at: t };
+      } else if (e.type === 'leave') {
+        r.leftAt = t;
+      } else if (e.type === 'beat') {
         // never more than the server's clock since the last heartbeat (plus a little)
         const allowed = r.beatAt ? Math.max(0, t - r.beatAt + 2000) : MAX_BEAT_MS;
         const ms = Math.min(e.ms, allowed);
@@ -223,6 +232,18 @@ function createVisitors({ store, routes = ROUTES, now = () => Date.now(), maxVis
     return wanted.filter((p) => !r.pages?.[p]);
   }
 
+  /** Whether the visitor has the demo open now, where, and since when (this visit). */
+  function liveOf(r) {
+    const t = now();
+    const live = Boolean(r.heardAt) && t - r.heardAt < LIVE_MS && !(r.leftAt && r.leftAt >= r.heardAt);
+    if (!live) return { live: false };
+    let since = r.first;
+    for (const [at, type] of r.events) if (type === 'visit') since = at;
+    let pageNow = r.here?.page || '';
+    if (!pageNow) for (const [, type, detail] of r.events) if (type === 'view') pageNow = detail;
+    return { live: true, pageNow, away: r.here ? !r.here.visible : false, since };
+  }
+
   /** Every visitor, newest first, without the events. */
   function list() {
     prune();
@@ -231,7 +252,7 @@ function createVisitors({ store, routes = ROUTES, now = () => Date.now(), maxVis
       return {
         ip, first: r.first, last: r.last, visits: r.visits, active: r.active, time: { ...r.time }, swaps: r.swaps, pages: { ...r.pages },
         clicks: { ...r.clicks }, blocked: r.blocked, feedback: r.feedback, device: r.device, country: r.country, never, sawAll: never.length === 0,
-        events: r.events.length
+        events: r.events.length, ...liveOf(r)
       };
     });
   }

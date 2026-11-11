@@ -142,3 +142,31 @@ test('kept across resets (demo/store.js), and the nav routes read from the app',
   assert.deepEqual(readRoutes(app), { original: ['overview', 'footage', 'new-page'], horizon: ['dashboard', 'viewer', 'jobs'] });
   assert.deepEqual(readRoutes(path.join(app, 'missing')), ROUTES);
 });
+
+test('live now: while the tracker is heard from (a hidden tab too), gone on leave or after 75 s of silence', () => {
+  const { vis, clock } = setup();
+  const page = vis.pages.find((p) => p.startsWith('original:'));
+  assert.equal(vis.record(IP, { events: [{ type: 'view', page }, { type: 'here', page, visible: true }] }).status, 200);
+  let v = vis.list()[0];
+  assert.equal(v.live, true);
+  assert.equal(v.pageNow, page);
+  assert.equal(v.away, false);
+  // the tab in the background still says it is there
+  clock.add(60_000);
+  vis.record(IP, { events: [{ type: 'here', page, visible: false }] });
+  v = vis.list()[0];
+  assert.equal(v.live, true);
+  assert.equal(v.away, true);
+  // silence: offline
+  clock.add(76_000);
+  assert.equal(vis.list()[0].live, false);
+  // back, then the page is closed
+  vis.record(IP, { events: [{ type: 'here', page, visible: true }] });
+  assert.equal(vis.list()[0].live, true);
+  vis.record(IP, { events: [{ type: 'leave' }] });
+  assert.equal(vis.list()[0].live, false);
+  // here and leave are not timeline events
+  assert.ok(!vis.events(IP).some((e) => e.type === 'here' || e.type === 'leave'));
+  // a here for a page that is not one is refused
+  assert.equal(validEvent({ type: 'here', page: 'nope' }, new Set(vis.pages)), null);
+});
