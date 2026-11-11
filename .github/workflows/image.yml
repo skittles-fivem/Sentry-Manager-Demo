@@ -15,6 +15,11 @@ on:
     - cron: '17 9 * * *'
   workflow_dispatch:
 
+# a newer push replaces a build still running (only the newest image matters)
+concurrency:
+  group: demo-image
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
@@ -22,6 +27,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # a stuck step (a package mirror that never answers) ends the build instead of hanging for hours
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -33,15 +40,17 @@ jobs:
         run: npm test
 
       - name: Demo drives
+        timeout-minutes: 10
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release download seed --pattern seed.tar --dir . --repo "$GITHUB_REPOSITORY" 2>/dev/null; then
+          if timeout 300 gh release download seed --pattern seed.tar --dir . --repo "$GITHUB_REPOSITORY" 2>/dev/null; then
             tar -xf seed.tar -C seed
             echo "SEED=release" >> "$GITHUB_ENV"
           else
             echo "No seed release: synthetic test footage"
-            sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
+            APT='-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30'
+            timeout 300 sudo apt-get $APT update -qq && timeout 300 sudo apt-get $APT install -y -qq ffmpeg fonts-dejavu-core >/dev/null
             git clone --depth 1 https://github.com/skittles-fivem/Sentry-Manager manager
             node tools/synthetic.js manager seed/footage/demo-car 4
             echo "SEED=synthetic" >> "$GITHUB_ENV"
