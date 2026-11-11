@@ -150,3 +150,44 @@ test('publishing as is needs the explicit tick; the mount is processed the same 
   imp.unpublish();
   assert.equal(imp.activeSeed(), null);
 });
+
+test('the prepared folder at /demo-import is used as it is, by itself, once per change; the files that name places are never copied', async () => {
+  const state = tmp();
+  const mount = tmp();
+  const day = path.join(mount, 'footage', '2026-10-20');
+  fs.mkdirSync(day, { recursive: true });
+  for (const cam of ['front', 'back', 'left_repeater', 'right_repeater']) fs.writeFileSync(path.join(day, `2026-10-20_14-05-00-${cam}.mp4`), 'x');
+  fs.writeFileSync(path.join(day, 'notes.txt'), 'not a clip');
+  fs.mkdirSync(path.join(mount, 'can_logs'));
+  fs.writeFileSync(path.join(mount, 'can_logs', 'HWY-car_20261020T190500Z_1.log.xz'), 'xz');
+  fs.writeFileSync(path.join(mount, 'can_logs', 'HWY-car_20261020T190500Z_1.log.xz.json'), '{}');
+  fs.writeFileSync(path.join(mount, 'README.txt'), 'Home: 41.1,-87.1');
+  fs.writeFileSync(path.join(mount, 'highway_stretches.csv'), 'lat,lon');
+  const imp = createImporter({ stateDir: state, mountDir: mount });
+  assert.equal(imp.activeSeed(), null);
+  assert.equal(await imp.autoImport({ name: 'My Y' }), true);
+  const seed = imp.activeSeed();
+  assert.ok(seed);
+  const files = [];
+  const walk = (d, rel = '') => { for (const e of fs.readdirSync(d, { withFileTypes: true })) e.isDirectory() ? walk(path.join(d, e.name), `${rel}${e.name}/`) : files.push(`${rel}${e.name}`); };
+  walk(seed);
+  assert.deepEqual(files.sort(), [
+    'can/HWY-car/HWY-car_20261020T190500Z_1.log.xz', 'can/HWY-car/HWY-car_20261020T190500Z_1.log.xz.json', 'can/map.json',
+    'footage/demo-car/TeslaCam/RecentClips/2026-10-20_14-05-00-back.mp4', 'footage/demo-car/TeslaCam/RecentClips/2026-10-20_14-05-00-front.mp4',
+    'footage/demo-car/TeslaCam/RecentClips/2026-10-20_14-05-00-left_repeater.mp4', 'footage/demo-car/TeslaCam/RecentClips/2026-10-20_14-05-00-right_repeater.mp4',
+    'vehicles.json'
+  ]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(seed, 'can', 'map.json'), 'utf8')), { 'HWY-car': 'demo-car' });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(seed, 'vehicles.json'), 'utf8'))['demo-car'].name, 'My Y');
+  // unchanged: nothing to do; a new clip: built again
+  assert.equal(await imp.autoImport(), false);
+  fs.writeFileSync(path.join(day, '2026-10-20_14-06-00-front.mp4'), 'y');
+  assert.equal(await imp.autoImport(), true);
+  assert.ok(fs.existsSync(path.join(imp.activeSeed(), 'footage/demo-car/TeslaCam/RecentClips/2026-10-20_14-06-00-front.mp4')));
+});
+
+test('an empty or missing /demo-import changes nothing', async () => {
+  const imp = createImporter({ stateDir: tmp(), mountDir: path.join(tmp(), 'none') });
+  assert.equal(await imp.autoImport(), false);
+  assert.equal(imp.activeSeed(), null);
+});

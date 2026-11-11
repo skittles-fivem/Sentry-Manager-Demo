@@ -30,7 +30,7 @@ delete process.env.DEMO_FEEDBACK_WEBHOOK;
 
 const APP = process.env.APP_ROOT || '/app';
 const DATA = process.env.DATA_PATH || '/data';
-const FOOTAGE = process.env.FOOTAGE_ROOT || '/footage';
+let FOOTAGE = process.env.FOOTAGE_ROOT || '/footage';
 const RESET_HOURS = Number(process.env.DEMO_RESET_HOURS || 24);
 const on = (v, dflt) => !/^(off|false|0|no)$/i.test(String(v ?? dflt));
 const DEMO_USER = 'demo';
@@ -48,6 +48,14 @@ process.on('exit', () => store.flush());
 const importer = store.writable ? createImporter({ stateDir: store.dir, log: say }) : null;
 // the owner's imported footage when published (demo/importer.js), else the built-in seed
 const SEED = importer?.activeSeed() || process.env.DEMO_SEED || '/demo/seed';
+// The owner's footage can be far larger than the in-memory /footage (it counts
+// against the container's memory): the app then reads it from the kept
+// volume, as links to the published seed (no second copy), still fresh at
+// every start.
+if (importer && SEED === importer.activeSeed()) {
+  FOOTAGE = path.join(store.dir, 'live-footage');
+  process.env.FOOTAGE_ROOT = FOOTAGE;
+}
 
 // ---- a fresh start: no accounts, settings or footage from the last run.
 // Only folders the demo made itself are ever emptied (they carry a marker):
@@ -84,10 +92,20 @@ if (store.writable && on(process.env.DEMO_KEEP_TLS, 'on')) {
     say(`certificates not kept across resets: ${err.code || err.message}`);
   }
 }
+/** A folder's files as hard links (same disk: no extra space), else copies. */
+function linkOrCopy(from, to) {
+  fs.mkdirSync(to, { recursive: true });
+  for (const e of fs.readdirSync(from, { withFileTypes: true })) {
+    const a = path.join(from, e.name);
+    const b = path.join(to, e.name);
+    if (e.isDirectory()) linkOrCopy(a, b);
+    else if (e.isFile()) { try { fs.linkSync(a, b); } catch { fs.copyFileSync(a, b); } }
+  }
+}
 const seedFootage = path.join(SEED, 'footage');
 if (fs.existsSync(seedFootage)) {
   for (const car of fs.readdirSync(seedFootage, { withFileTypes: true }).filter((d) => d.isDirectory())) {
-    fs.cpSync(path.join(seedFootage, car.name), path.join(FOOTAGE, car.name), { recursive: true });
+    linkOrCopy(path.join(seedFootage, car.name), path.join(FOOTAGE, car.name));
   }
   say(`footage copied from ${seedFootage}`);
 } else say(`no footage in ${seedFootage}`);
@@ -428,6 +446,15 @@ waitForPort().then(() => seed({ port: listenPort, token: INTERNAL, seedDir: SEED
       });
     }
     say('ready');
+    // the owner's prepared folder at /demo-import: the demo builds itself from
+    // it, now and whenever it changes (DEMO_IMPORT=off: never)
+    if (importer && on(process.env.DEMO_IMPORT, 'auto')) {
+      const check = () => importer.autoImport({ name: process.env.DEMO_CAR_NAME || 'Demo Model Y' })
+        .then((fresh) => { if (fresh) reset('your footage folder was built into the demo'); })
+        .catch((err) => say(`building the demo from /demo-import failed: ${err.message}`));
+      check();
+      setInterval(check, 10 * 60_000).unref();
+    }
   })
   .catch((err) => say(`setting up the demo failed: ${err.stack || err.message}`));
 

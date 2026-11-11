@@ -24,6 +24,7 @@
 // them) and never read: they name places. Nothing of the upload is published
 // as it is: the seed is only what sanitize.js wrote, copied by an allowlist.
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -329,10 +330,96 @@ function createImporter({
     };
   }
 
+  // ---- automatic: the owner's prepared folder at /demo-import, no owner page
+  /** What the mounted folder holds (paths, sizes, times), to see when it changed. */
+  function mountPrint() {
+    const h = crypto.createHash('sha256');
+    let files = 0;
+    const walk = (dir, rel) => {
+      let ents;
+      try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of ents.sort((a, b) => (a.name < b.name ? -1 : 1))) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p, `${rel}${e.name}/`);
+        else if (e.isFile()) { const st = fs.statSync(p); h.update(`${rel}${e.name}|${st.size}|${Math.floor(st.mtimeMs)}\n`); files += 1; }
+      }
+    };
+    walk(path.join(mountDir, 'footage'), 'footage/');
+    walk(path.join(mountDir, 'can_logs'), 'can_logs/');
+    return files ? h.digest('hex') : null;
+  }
+  /**
+   * The owner's prepared folder, used as it is (it was prepared for the demo
+   * in advance): footage/<day>/<time>-<camera>.mp4 become the demo car's
+   * RecentClips, can_logs/<key>_<UTC>_<n>.log.xz (+ .json) its CAN data.
+   * README.txt and highway_stretches.csv are never read or copied (they name
+   * places). Nothing else in the folder is taken.
+   */
+  function buildAsIs(name) {
+    const next = `${dirs.seed}.new`;
+    fs.rmSync(next, { recursive: true, force: true });
+    const clipsDir = path.join(next, 'footage', 'demo-car', 'TeslaCam', 'RecentClips');
+    fs.mkdirSync(clipsDir, { recursive: true });
+    const CLIP = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-[a-z_]+\.mp4$/;
+    const LOG = /^([A-Za-z0-9-]{1,64})_\d{8}T\d{6}Z_\d{1,6}\.log\.xz(\.json)?$/;
+    const walk = (dir) => {
+      let ents;
+      try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return []; }
+      return ents.flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : e.isFile() ? [path.join(dir, e.name)] : []));
+    };
+    let clips = 0;
+    const minutes = new Set();
+    for (const f of walk(path.join(mountDir, 'footage'))) {
+      const base = path.basename(f);
+      if (!CLIP.test(base)) continue;
+      fs.copyFileSync(f, path.join(clipsDir, base));
+      clips += 1;
+      minutes.add(base.slice(0, 19));
+    }
+    if (!clips) { fs.rmSync(next, { recursive: true, force: true }); throw new Error('no clips named like 2026-10-20_14-05-00-front.mp4 under /demo-import/footage'); }
+    const map = {};
+    let logs = 0;
+    for (const f of walk(path.join(mountDir, 'can_logs'))) {
+      const m = LOG.exec(path.basename(f));
+      if (!m) continue;
+      const dir = path.join(next, 'can', m[1]);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.copyFileSync(f, path.join(dir, path.basename(f)));
+      map[m[1]] = 'demo-car';
+      if (!m[2]) logs += 1;
+    }
+    if (logs) fs.writeFileSync(path.join(next, 'can', 'map.json'), `${JSON.stringify(map)}\n`);
+    fs.writeFileSync(path.join(next, 'vehicles.json'), `${JSON.stringify({ 'demo-car': { name, timezone: TZ, car: { model: 'Y', generation: 'auto' } } })}\n`);
+    fs.rmSync(`${dirs.seed}.old`, { recursive: true, force: true });
+    if (fs.existsSync(dirs.seed)) fs.renameSync(dirs.seed, `${dirs.seed}.old`);
+    fs.renameSync(next, dirs.seed);
+    fs.rmSync(`${dirs.seed}.old`, { recursive: true, force: true });
+    writeInfo('seed', { at: now(), minutes: minutes.size, blurred: false, clips, canLogs: logs, source: 'demo-import as is' });
+    return { minutes: minutes.size, clips, logs };
+  }
+  /** Builds the demo from /demo-import when it is new or changed; true when a new seed is in place. */
+  async function autoImport({ name = 'Demo Model Y' } = {}) {
+    const print = mountPrint();
+    if (!print) return false;
+    const last = readInfo('auto');
+    if (last && last.print === print) return false;
+    log('your footage folder (/demo-import) is new or changed: the demo now uses it');
+    try {
+      const r = buildAsIs(name);
+      writeInfo('auto', { print, at: now(), ...r });
+      log(`the demo shows your footage: ${r.minutes} minutes, ${r.clips} clips, ${r.logs} CAN logs`);
+      return true;
+    } catch (err) {
+      writeInfo('auto', { print, at: now(), failed: err.message });
+      log(`could not use /demo-import: ${err.message}`);
+      return false;
+    }
+  }
+
   /** The seed the demo starts from: the published one, else null (the built-in). */
   const activeSeed = () => (fs.existsSync(path.join(dirs.seed, 'footage')) ? dirs.seed : null);
 
-  return { plan, chunk, process: process_, publish, unpublish, discard, status, activeSeed, dirs, blurCommand, get job() { return job; } };
+  return { plan, chunk, process: process_, autoImport, mountPrint, publish, unpublish, discard, status, activeSeed, dirs, blurCommand, get job() { return job; } };
 }
 
 module.exports = { createImporter, checkUploadPath, copySeed, parseAvoid, blurState, clipStamps, SEED_RULES, UPLOAD_RULES, MAX_CHUNK, TZ };
