@@ -47,7 +47,16 @@ if (!store.writable) say(`${store.dir} is not writable: the attack log, bans, im
 process.on('exit', () => store.flush());
 const importer = store.writable ? createImporter({ stateDir: store.dir, log: say }) : null;
 // the owner's imported footage when published (demo/importer.js), else the built-in seed
-const SEED = importer?.activeSeed() || process.env.DEMO_SEED || '/demo/seed';
+// The owner's prepared folder at /demo-import, used as it is: built into the
+// seed before anything starts, so the first page already shows it
+// (DEMO_IMPORT=off: never). It is checked again every 10 minutes (below).
+if (importer && on(process.env.DEMO_IMPORT, 'auto')) {
+  try { importer.autoImport({ name: process.env.DEMO_CAR_NAME || 'Demo Model Y' }); } catch (err) { say(`could not use /demo-import: ${err.message}`); }
+}
+// Only the owner's footage is shown; the image's test drives only with
+// DEMO_BUILTIN_FOOTAGE=on (else no footage until /demo-import has some).
+const SEED = importer?.activeSeed() || (on(process.env.DEMO_BUILTIN_FOOTAGE, 'off') ? process.env.DEMO_SEED || '/demo/seed' : path.join(__dirname, 'no-footage'));
+if (!importer?.activeSeed()) say('no footage of yours yet: mount your prepared folder at /demo-import (docker-compose.yml)');
 // The owner's footage can be far larger than the in-memory /footage (it counts
 // against the container's memory): the app then reads it from the kept
 // volume, as links to the published seed (no second copy), still fresh at
@@ -192,7 +201,7 @@ function withBanner(req, res, handler) {
       const html = body.toString('utf8');
       if (html.includes('id="app"') && html.includes('</head>')) {
         const ui = uiSwap.uiOf(req) || 'original';
-        body = Buffer.from(html.replace('</head>', `  <link rel="stylesheet" href="/demo/banner.css">\n  <script src="/demo/banner.js" data-ui="${ui}" defer></script>\n</head>`));
+        body = Buffer.from(html.replace('</head>', `  <link rel="stylesheet" href="/demo/banner.css">\n  <script src="/demo/device.js" defer></script>\n  <script src="/demo/banner.js" data-ui="${ui}" defer></script>\n</head>`));
       }
     }
     delete headers['content-length'];
@@ -257,7 +266,7 @@ const reset = (why) => {
   store.flush();
   process.exit(0);
 };
-const feedback = createFeedback({ webhook: FEEDBACK_WEBHOOK, showIp: on(process.env.DEMO_FEEDBACK_SHOW_IP, 'off'), store, attackLog, addressOf: who.of, log: say });
+const feedback = createFeedback({ webhook: FEEDBACK_WEBHOOK, store, attackLog, addressOf: who.of, log: say });
 const owner = createOwnerPage({
   password: OWNER_PASSWORD, store, attackLog, bans, limits, addressOf: who.of,
   net: { proxy: who.proxy, listedProxies: who.listedProxies, gateways: readGateways() }, importer,
@@ -269,7 +278,8 @@ if (feedback.enabled) say('feedback on (Discord)');
 const FEEDBACK_FILES = {
   '/demo/feedback': ['feedback.html', 'text/html; charset=utf-8'],
   '/demo/feedback.js': ['feedback.js', 'text/javascript; charset=utf-8'],
-  '/demo/feedback.css': ['feedback.css', 'text/css; charset=utf-8']
+  '/demo/feedback.css': ['feedback.css', 'text/css; charset=utf-8'],
+  '/demo/device.js': ['device.js', 'text/javascript; charset=utf-8']
 };
 const { send: sendLayer } = require('./owner');
 const ACME = '/.well-known/acme-challenge/';

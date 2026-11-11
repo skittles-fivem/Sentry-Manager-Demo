@@ -147,8 +147,12 @@ page, an answer or a log, and the browser only hears "Thanks, sent" or
 
 - One embed, with `allowed_mentions` empty (nobody is pinged), the text's
   Discord markdown escaped, mentions broken and links wrapped in `<…>` (no
-  previews); the time, the page and the visitor's address, shortened and
-  hashed (`DEMO_FEEDBACK_SHOW_IP=1`: the whole address).
+  previews); the time, the page, the visitor's whole address and their
+  machine as their browser describes it (OS, browser, device, CPU threads,
+  memory, graphics, screen, window, language, time zone, user agent), for
+  bugs that only show on their hardware. The form says this is sent.
+- Feedback opens as a pop-up over the page (the Feedback link in the demo
+  note); `/demo/feedback` is the same form as a page.
 - At most 3 an hour and 10 a day from one address, 60 an hour in all; a
   hidden field only bots fill; at least 3 seconds on the page; no empty or
   link-only messages. Each hit is noted in the attack log.
@@ -206,7 +210,6 @@ footage folder by mistake, it refuses to start instead.
 | `DEMO_SENTRYUSB` | `on` | The stand-in Sentry USB visitors may change (`off`: none) |
 | `DEMO_OWNER_PASSWORD` | | The owner page's password (from `.env`); empty: no owner page |
 | `DEMO_FEEDBACK_WEBHOOK` | | The Discord webhook for feedback (from `.env`); empty: feedback off |
-| `DEMO_FEEDBACK_SHOW_IP` | `0` | `1`: the visitor's whole address in Discord |
 | `TLS_ACME_DOMAIN`, `TLS_ACME_EMAIL` | | Let's Encrypt for this name (a manager image with it, see "On the internet") |
 | `TRUST_CLOUDFLARE` | `0` | `1` behind Cloudflare's proxy: the visitor is `CF-Connecting-IP`, only from Cloudflare's ranges (`CLOUDFLARE_IPS` replaces them) |
 | `DEMO_STATE` | `/demo-state` | What survives the resets |

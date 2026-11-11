@@ -14,7 +14,9 @@
 // is pinged, whatever the text says), the visitor's text with Discord
 // markdown escaped, mentions broken and links wrapped in <...> (no preview),
 // the page, the time and the visitor's address (the Cloudflare-aware one),
-// shortened and hashed unless DEMO_FEEDBACK_SHOW_IP=1.
+// whole, and the sender's
+// machine as their browser describes it (OS, browser, screen, graphics...),
+// which the form tells them is sent, for tracking down bugs on their hardware.
 //
 // Limits: per address 3 an hour and 10 a day, 60 an hour in all; a honeypot
 // field; at least 3 s between opening the page and sending (a signed token);
@@ -97,14 +99,36 @@ function shownAddress(ip, { showIp = false, salt = '' } = {}) {
   return `${short} #${hash}`;
 }
 
+// The sender's machine, as their browser describes it (sent with the message,
+// the form says so): a few known keys, plain text, each line short.
+const DEVICE_KEYS = {
+  os: 'OS', browser: 'Browser', model: 'Device', arch: 'CPU arch', cores: 'CPU threads', memory: 'Memory', gpu: 'Graphics',
+  screen: 'Screen', viewport: 'Window', touch: 'Touch', language: 'Language', timezone: 'Time zone', connection: 'Connection', ui: 'Interface'
+};
+/** The device lines for the embed, from what the browser sent (unknown keys dropped). */
+function deviceLines(device) {
+  if (!device || typeof device !== 'object' || Array.isArray(device)) return [];
+  const out = [];
+  for (const [k, label] of Object.entries(DEVICE_KEYS)) {
+    const v = device[k];
+    if (typeof v !== 'string' && typeof v !== 'number') continue;
+    const text = discordSafe(String(v).replace(/\n/g, ' '), 120);
+    if (text) out.push(`**${label}:** ${text}`);
+  }
+  return out;
+}
+
 /** The JSON Discord gets. */
-function payload({ message, contact, page, address, at }) {
+function payload({ message, contact, page, address, at, device = null, userAgent = '' }) {
   const fields = [
     { name: 'Page', value: discordSafe(page, MAX_PAGE) || '-', inline: true },
     { name: 'From', value: escapeText(address), inline: true },
     { name: 'Time', value: escapeText(new Date(at).toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')), inline: true }
   ];
   if (contact) fields.push({ name: 'Contact', value: discordSafe(contact, MAX_CONTACT) });
+  const lines = deviceLines(device);
+  if (lines.length) fields.push({ name: 'Machine', value: lines.join('\n').slice(0, 1024) });
+  if (userAgent) fields.push({ name: 'User agent', value: discordSafe(userAgent, 400) || '-' });
   return {
     username: 'Sentry Six Manager demo',
     allowed_mentions: { parse: [] },
@@ -139,7 +163,7 @@ function post(url, body, { request = https.request, timeoutMs = TIMEOUT_MS } = {
  * o: webhook, showIp, store (demo/store.js), attackLog, addressOf(req), now,
  * log, request (for tests: like https.request), secret (for the page tokens).
  */
-function createFeedback({ webhook = '', showIp = false, store, attackLog = null, addressOf, now = () => Date.now(), log = () => {}, request = https.request, secret = null } = {}) {
+function createFeedback({ webhook = '', showIp = true, store, attackLog = null, addressOf, now = () => Date.now(), log = () => {}, request = https.request, secret = null } = {}) {
   const url = validWebhook(webhook) ? String(webhook).trim() : null;
   if (webhook && !url) log('feedback is off: DEMO_FEEDBACK_WEBHOOK is not a https://discord.com/api/webhooks/... address');
   const doc = store.load('feedback', null) || {};
@@ -222,7 +246,10 @@ function createFeedback({ webhook = '', showIp = false, store, attackLog = null,
       return fail(429);
     }
     count(req);
-    const body = payload({ message, contact, page, address: shownAddress(addressOf(req), { showIp, salt: doc.salt }), at: now() });
+    const body = payload({
+      message, contact, page, address: shownAddress(addressOf(req), { showIp, salt: doc.salt }), at: now(),
+      device: f.device, userAgent: String(req.headers?.['user-agent'] || '').slice(0, 400)
+    });
     try {
       const status = await post(url, body, { request });
       if (status >= 200 && status < 300) return { status: 200, body: { ok: true, message: SENT } };
@@ -236,4 +263,4 @@ function createFeedback({ webhook = '', showIp = false, store, attackLog = null,
   return { enabled: Boolean(url), token, submit, limits: LIMITS };
 }
 
-module.exports = { createFeedback, validWebhook, discordSafe, escapeText, onlyLinks, shownAddress, payload, post, LIMITS, MAX_MESSAGE, MAX_CONTACT, SENT, FAILED };
+module.exports = { createFeedback, deviceLines, validWebhook, discordSafe, escapeText, onlyLinks, shownAddress, payload, post, LIMITS, MAX_MESSAGE, MAX_CONTACT, SENT, FAILED };

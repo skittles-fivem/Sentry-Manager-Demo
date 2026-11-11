@@ -41,9 +41,61 @@
       b.disabled = false;
     });
   }
-  // the feedback page, told which page it was opened from
+  // Feedback: a pop-up over the page (the form at /demo/feedback without it)
+  const H = { 'X-Requested-With': 'sentry-six-manager', 'Content-Type': 'application/json' };
+  const FAILED = "Couldn't send, try again later";
+  let dialog = null;
+  function openFeedback() {
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.className = 'sentry-demo-fb';
+      dialog.innerHTML = '<form method="dialog" novalidate>'
+        + '<div class="sentry-demo-fb-head"><b>Feedback</b><button type="button" class="sentry-demo-fb-x" aria-label="Close">×</button></div>'
+        + '<p class="sentry-demo-fb-intro">What worked, what didn\'t, what you\'d want. It goes to the person who runs this demo, with your IP address and your device\'s details (OS, browser, screen, graphics) to help track down bugs.</p>'
+        + '<label>Your message<textarea name="message" rows="6" maxlength="2000" required></textarea></label>'
+        + '<label>Name or contact <span>(optional)</span><input name="contact" maxlength="100" autocomplete="off"></label>'
+        + '<div class="sentry-demo-fb-hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>'
+        + '<p class="sentry-demo-fb-note" role="status" aria-live="polite"></p>'
+        + '<div class="sentry-demo-fb-actions"><button type="submit" class="sentry-demo-fb-send">Send</button><button type="button" class="sentry-demo-fb-cancel">Close</button></div>'
+        + '</form>';
+      document.body.appendChild(dialog);
+      const f = dialog.querySelector('form');
+      const note = (t, ok) => { const n = dialog.querySelector('.sentry-demo-fb-note'); n.textContent = t; n.className = `sentry-demo-fb-note ${ok ? 'ok' : ok === false ? 'bad' : ''}`; };
+      for (const b of dialog.querySelectorAll('.sentry-demo-fb-x, .sentry-demo-fb-cancel')) b.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+      f.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = f.message.value.trim();
+        if (!message) { note('Write a message first.', false); return; }
+        const send = dialog.querySelector('.sentry-demo-fb-send');
+        send.disabled = true;
+        try {
+          const device = await window.sentryDemoDevice?.().catch(() => null);
+          const r = await fetch('/api/demo/feedback', { method: 'POST', credentials: 'same-origin', headers: H,
+            body: JSON.stringify({ message, contact: f.contact.value.trim(), page: (location.pathname + location.hash).slice(0, 200), website: f.website.value, token: dialog.dataset.token || '', device }) });
+          const d = await r.json().catch(() => ({}));
+          note(d.message || FAILED, r.ok && d.ok);
+          if (r.ok && d.ok) f.message.value = '';
+        } catch { note(FAILED, false); }
+        send.disabled = false;
+      });
+    }
+    dialog.querySelector('.sentry-demo-fb-note').textContent = '';
+    // a fresh token each time it opens (the server wants a few seconds before sending)
+    fetch('/api/demo/feedback', { credentials: 'same-origin', headers: { 'X-Requested-With': 'sentry-six-manager' } })
+      .then((r) => r.json()).then((s) => {
+        if (!s.enabled) { dialog.querySelector('.sentry-demo-fb-note').textContent = 'Feedback is off on this demo.'; return; }
+        dialog.dataset.token = s.token;
+      }).catch(() => {});
+    if (!dialog.open) dialog.showModal();
+    dialog.querySelector('textarea').focus();
+  }
   for (const a of [card, pill].map((n) => n.querySelector('.sentry-demo-feedback'))) {
-    a.addEventListener('click', () => { a.href = `/demo/feedback?from=${encodeURIComponent((location.pathname + location.hash).slice(0, 200))}`; });
+    a.addEventListener('click', (e) => {
+      if (typeof HTMLDialogElement !== 'function') { a.href = `/demo/feedback?from=${encodeURIComponent((location.pathname + location.hash).slice(0, 200))}`; return; }
+      e.preventDefault();
+      openFeedback();
+    });
   }
   let timer = null;
   // the main dashboard (original: #/overview, Horizon: #/dashboard): the note stays open there

@@ -30,7 +30,7 @@
     try {
       const r = await fetch('/api/demo/feedback', {
         method: 'POST', credentials: 'same-origin', headers: H,
-        body: JSON.stringify({ message, contact: $('contact').value.trim(), page: $('page').value.trim(), website: $('website').value, token })
+        body: JSON.stringify({ message, contact: $('contact').value.trim(), page: $('page').value.trim(), website: $('website').value, token, device: await window.sentryDemoDevice?.().catch(() => null) })
       });
       const d = await r.json().catch(() => ({}));
       note(d.message || "Couldn't send, try again later", r.ok && d.ok);

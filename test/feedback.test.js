@@ -196,3 +196,15 @@ test('the honeypot, the time on the page, empty and link-only messages: nothing 
     await discord.close();
   }
 });
+
+test('the sender\'s machine goes to Discord as plain lines from known keys only', () => {
+  const { deviceLines, payload } = require('../demo/feedback');
+  const lines = deviceLines({ os: 'Windows 11', browser: 'Chrome 141', gpu: 'NVIDIA GeForce RTX 4070 *bold*', cores: 16, evil: 'x', screen: '2560×1440 at 1x' });
+  assert.deepEqual(lines, ['**OS:** Windows 11', '**Browser:** Chrome 141', '**CPU threads:** 16', '**Graphics:** NVIDIA GeForce RTX 4070 \\*bold\\*', '**Screen:** 2560×1440 at 1x']);
+  assert.deepEqual(deviceLines('nope'), []);
+  const p = payload({ message: 'hi', page: '/', address: '203.0.113.9', at: 0, device: { os: 'Linux' }, userAgent: 'Mozilla/5.0 @everyone' });
+  const f = Object.fromEntries(p.embeds[0].fields.map((x) => [x.name, x.value]));
+  assert.equal(f.From, '203.0.113.9');
+  assert.equal(f.Machine, '**OS:** Linux');
+  assert.match(f['User agent'], /@​everyone/);
+});

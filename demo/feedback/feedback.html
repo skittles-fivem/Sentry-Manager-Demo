@@ -13,7 +13,7 @@
   <main class="fb card">
     <p class="fb-kicker"><span class="sentry-demo-dot" aria-hidden="true"></span> Sentry Six Manager demo</p>
     <h1>Feedback</h1>
-    <p class="muted small" id="intro">What worked, what didn't, what you'd want. It goes to the person who runs this demo.</p>
+    <p class="muted small" id="intro">What worked, what didn't, what you'd want. It goes to the person who runs this demo, with your IP address and your device's details (OS, browser, screen, graphics) to help track down bugs.</p>
     <p class="fb-off" id="off" hidden>Feedback is off on this demo.</p>
     <form id="form" novalidate>
       <label class="field">Your message
@@ -29,6 +29,7 @@
       <div class="fb-actions"><button class="btn solid" type="submit" id="send">Send</button><a class="btn ghost" href="/" id="back">Back to the demo</a></div>
     </form>
   </main>
+  <script src="/demo/device.js"></script>
   <script src="/demo/feedback.js"></script>
 </body>
 </html>
