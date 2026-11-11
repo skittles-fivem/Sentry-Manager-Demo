@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { call } = require('./internalClient');
 const { uploadCan } = require('./seedCan');
+const { seedViewerLayout } = require('./viewerLayout');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -52,6 +53,8 @@ async function seed({ port, token, seedDir, footage, log }) {
     ? fs.readdirSync(footage, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith('.')).map((d) => d.name).sort()
     : [];
   if (!cars.length) log('no vehicles to add: put footage in seed/footage/<car>/ (see README)');
+  // the Viewer's car-data layout: the owner's own, for every visitor (demo/viewerLayout.js)
+  await seedViewerLayout(api, log);
   const added = [];
   for (const dir of cars) {
     const meta = names[dir] || {};
