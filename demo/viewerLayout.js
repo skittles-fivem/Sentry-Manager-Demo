@@ -8,8 +8,10 @@
 // QUIET_WRITES), so the next visitor, and every reset, starts from this.
 //
 // Three 3-in-1 blocks (each signal id as statDash.js names it; the labels are
-// what the bar shows), then the List with every stat, "Changing only" ticked;
-// °F and mph.
+// what the bar shows); °F and mph. The "Every stat" List is not in it: docked,
+// it took most of the Original interface's Viewer (which does not scroll) and
+// squashed the cameras, so the bar rose onto them under the Clips panel and
+// the map. A visitor can still add the List with Customize.
 
 const OWNER_BOARD = () => ({
   boards: [{
@@ -17,16 +19,13 @@ const OWNER_BOARD = () => ({
     name: 'Drive',
     placement: 'below',
     metric: false,
-    listPlacement: 'dock',
     blocks: [
       // Battery temp, HV Battery Current, Battery power (computed)
       { type: 'wide', signals: ['calc.battTemp', 'can.SmoothBattCurrent132', 'calc.batteryPower'] },
       // Battery Coolant Temp, 12V Battery Voltage, 12V Battery Current
       { type: 'wide', signals: ['can.VCFRONT_tempCoolantBatInlet', 'can.v12vBattVoltage261', 'can.v12vBattCurrent261'] },
       // Outside Temperature, Cabin Temperature, Steering
-      { type: 'wide', signals: ['can.VCFRONT_tempAmbientFiltered', 'can.VCRIGHT_hvacCabinTempEst', 'dash.steering'] },
-      // the "Every stat" List, changing ones only
-      { type: 'list', signals: [], q: '', changing: true }
+      { type: 'wide', signals: ['can.VCFRONT_tempAmbientFiltered', 'can.VCRIGHT_hvacCabinTempEst', 'dash.steering'] }
     ]
   }],
   active: 'default'
