@@ -116,5 +116,12 @@ details.group > summary::-webkit-details-marker { display: none; }
 .live-row .ip { font-family: ui-monospace, monospace; font-weight: 600; }
 .live-row .where b { font-weight: 600; }
 .live-row .away { color: #f5b83d; }
+/* what each live visitor did lately, newest first */
+.live-row .recent { grid-column: 1 / -1; list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.live-row .recent li { display: inline-flex; gap: 6px; align-items: baseline; max-width: 100%; padding: 3px 8px; border-radius: 999px; font-size: 12px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .07); }
+.live-row .recent li:first-child { border-color: rgba(61, 220, 132, .45); }
+.live-row .recent li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-row .recent time { color: rgba(255, 255, 255, .45); font-size: 11px; white-space: nowrap; }
+.live-row .recent li.bad { border-color: rgba(255, 99, 99, .5); }
 @media (max-width: 760px) { .live-row { grid-template-columns: 1fr auto; } .live-row .dev { grid-column: 1 / -1; } }
 .live-row .you { margin-left: 8px; }

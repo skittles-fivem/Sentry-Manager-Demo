@@ -176,6 +176,7 @@ computer on your network, `https://<server's LAN address>/owner`.
   count per address and kind; each address folds open; at most 5,000 rows,
   30 days; filter, sort, CSV export, and a one-tap ban (30 days; every
   request from a banned address, or its IPv6 /64, is refused).
+- **Live now:** who has the demo open, the page they are on (updated within a couple of seconds of moving) and their last 8 actions, refreshed every 4 s.
 - **Visitors** ([`demo/visitors.js`](demo/visitors.js), tracker
   [`demo/track.js`](demo/track.js)): one row per address, newest first, in a
   scroll box of about six rows: first and last seen, visits (a new one after

@@ -170,3 +170,23 @@ test('live now: while the tracker is heard from (a hidden tab too), gone on leav
   // a here for a page that is not one is refused
   assert.equal(validEvent({ type: 'here', page: 'nope' }, new Set(vis.pages)), null);
 });
+
+test('live now: the page moves with the visitor, and their last 8 actions of this visit, newest first', () => {
+  const { vis, clock } = setup();
+  const [a, b] = vis.pages.filter((p) => p.startsWith('original:'));
+  vis.record(IP, { events: [{ type: 'view', page: a }, { type: 'here', page: a, visible: true }] });
+  clock.add(2000);
+  vis.record(IP, { events: [{ type: 'view', page: b }, { type: 'here', page: b, visible: true }, { type: 'click', kind: 'button', label: 'Play' }, { type: 'device', device: { os: 'Linux' } }] });
+  let v = vis.list()[0];
+  assert.equal(v.pageNow, b);
+  assert.deepEqual(v.recent.map((e) => e.type), ['click', 'view', 'view']);
+  assert.equal(v.recent[0].detail, 'button|Play');
+  for (let i = 0; i < 12; i++) vis.record(IP, { events: [{ type: 'click', kind: 'button', label: `B${i}` }] });
+  v = vis.list()[0];
+  assert.equal(v.recent.length, 8);
+  assert.equal(v.recent[0].detail, 'button|B11');
+  // a new visit starts a fresh list
+  clock.add(31 * 60_000);
+  vis.record(IP, { events: [{ type: 'here', page: b, visible: true }] });
+  assert.deepEqual(vis.list()[0].recent, []);
+});

@@ -119,6 +119,18 @@
     ['pages', 'Pages', (v) => Object.keys(v.pages).length], ['clicks', 'Controls', (v) => sum(v.clicks)], ['blocked', 'Blocked', (v) => v.blocked],
     ['device', 'Device', (v) => `${v.country} ${v.device}`], ['feedback', 'Feedback', (v) => v.feedback]
   ];
+  // one event of a visitor, in words
+  const what = (e) => {
+    if (e.type === 'view') return `opened ${pageName(e.detail)}`;
+    if (e.type === 'click') { const [kind, ...l] = e.detail.split('|'); return `${kind} “${l.join('|')}”`; }
+    if (e.type === 'swap') return `swapped to ${e.detail === 'horizon' ? 'Horizon' : 'the original'}`;
+    if (e.type === 'blocked') return `blocked by the demo: ${e.detail}`;
+    if (e.type === 'feedback') return 'sent feedback';
+    if (e.type === 'visit') return `visit ${e.detail} started`;
+    if (e.type === 'device') return `device: ${e.detail}`;
+    return `${e.type} ${e.detail}`;
+  };
+  const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 5 ? 'now' : s < 60 ? `${s} s ago` : `${Math.floor(s / 60)} m ago`; };
   let vSort = { key: 'last', dir: -1 };
   let vData = null;
   const vOpen = new Set();
@@ -134,7 +146,10 @@
         el('div', {}, el('span', { class: 'ip' }, v.ip), v.ip === you ? el('span', { class: 'you' }, 'you') : null),
         el('div', { class: 'where' }, 'on ', el('b', {}, pageName(v.pageNow) || '-'), v.away ? el('span', { class: 'away' }, ' · tab in the background') : null),
         el('div', { class: 'muted small' }, `here ${dur(Math.max(0, Date.now() - v.since))} · ${sum(v.clicks)} controls${v.swaps ? ` · swapped ${v.swaps}×` : ''}`),
-        el('div', { class: 'dev muted small' }, v.country ? `${v.country} · ` : '', v.device || ''));
+        el('div', { class: 'dev muted small' }, v.country ? `${v.country} · ` : '', v.device || ''),
+        el('ol', { class: 'recent' }, ...((v.recent || []).length
+          ? v.recent.map((e) => el('li', { class: e.type === 'blocked' ? 'bad' : '' }, el('span', {}, what(e)), el('time', {}, ago(e.t))))
+          : [el('li', { class: 'muted' }, el('span', {}, 'Just looking so far'))])));
       return row;
     })));
   }
@@ -182,16 +197,6 @@
     const clicks = Object.entries(v.clicks).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const [kind, ...l] = k.split('|'); return [`${l.join('|')} (${kind})`, n]; });
     const list = el('ol', {}, el('li', {}, el('span', { class: 'muted' }, 'Loading…')));
     call('GET', `/api/owner/visitor?ip=${encodeURIComponent(v.ip)}`).then((d) => {
-      const what = (e) => {
-        if (e.type === 'view') return `opened ${pageName(e.detail)}`;
-        if (e.type === 'click') { const [kind, ...l] = e.detail.split('|'); return `${kind} “${l.join('|')}”`; }
-        if (e.type === 'swap') return `swapped to ${e.detail === 'horizon' ? 'Horizon' : 'the original'}`;
-        if (e.type === 'blocked') return `blocked by the demo: ${e.detail}`;
-        if (e.type === 'feedback') return 'sent feedback';
-        if (e.type === 'visit') return `visit ${e.detail} started`;
-        if (e.type === 'device') return `device: ${e.detail}`;
-        return `${e.type} ${e.detail}`;
-      };
       list.replaceChildren(...d.events.slice().reverse().map((e) => el('li', { class: e.type === 'blocked' ? 'bad' : '' }, el('time', {}, stamp(e.t, true)), el('span', {}, what(e)))));
     }).catch((err) => list.replaceChildren(el('li', {}, err.message)));
     return el('td', { class: 'detail', colspan: String(VCOLS.length) }, el('div', { class: 'vdet' },
@@ -211,7 +216,7 @@
       render(s);
       loadVisitors();
       clearInterval(liveTimer);
-      liveTimer = setInterval(() => { if (document.visibilityState === 'visible') loadVisitors(); }, 10_000);
+      liveTimer = setInterval(() => { if (document.visibilityState === 'visible') loadVisitors(); }, 4_000);
     } catch (err) {
       if (err.status === 401) { $('page').hidden = true; $('login').hidden = false; return; }
       $('err').textContent = err.message;

@@ -26,7 +26,10 @@
     } catch { /* never in the way */ }
     if (queue.length) send(beacon);
   };
-  const add = (e) => { queue.push(e); if (queue.length >= 20) send(false); };
+  // what the visitor does reaches the owner page's Live now within a couple of seconds
+  let soonTimer = 0;
+  const soon = () => { if (!soonTimer) soonTimer = setTimeout(() => { soonTimer = 0; send(false); }, 1200); };
+  const add = (e, now) => { queue.push(e); if (queue.length >= 20) send(false); else if (now) soon(); };
 
   // ---- the page or panel
   const studio = /^\/studio\/(?:index\.html)?$/.test(location.pathname) ? 'studio:viewer' : /^\/studio\/encoder\.html$/.test(location.pathname) ? 'studio:encoder' : null;
@@ -36,8 +39,18 @@
     const route = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0] || (UI === 'horizon' ? 'dashboard' : 'overview');
     return `${UI}:${route.toLowerCase().slice(0, 30)}`;
   };
-  const view = () => { const p = page(); if (p !== lastPage) { lastPage = p; add({ type: 'view', page: p }); } };
+  const here = () => add({ type: 'here', page: page(), visible: document.visibilityState === 'visible' });
+  const view = () => {
+    const p = page();
+    if (p === lastPage) return;
+    lastPage = p;
+    add({ type: 'view', page: p }, true);
+    // the page the visitor is on now (the top page only: an embedded Viewer is part of it)
+    if (top) here();
+  };
   addEventListener('hashchange', view);
+  // a route changed without a hashchange (history.replaceState)
+  setInterval(view, 2000);
 
   // ---- controls used: their label, never their value
   const text = (n) => (n?.innerText || n?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -59,7 +72,7 @@
     const c = e.target?.closest?.('button, a, input, select, textarea, summary, [role="button"], [role="tab"], [role="menuitem"]');
     if (!c) return;
     const label = labelOf(c).replace(/\s+/g, ' ').trim().slice(0, 60);
-    if (label) add({ type: 'click', kind: kindOf(c), label });
+    if (label) add({ type: 'click', kind: kindOf(c), label }, true);
     const swap = c.closest('.sentry-demo-swap');
     if (swap) { add({ type: 'swap', to: swap.dataset.ui === 'horizon' ? 'horizon' : 'original' }); send(false); }
   }, true);
@@ -79,7 +92,6 @@
       if (document.visibilityState === 'visible') { if (!since) since = Date.now(); } else { beat(); send(true); }
     });
     // "still here", for the owner page's Live now (also from a hidden tab: the browser may slow it to once a minute)
-    const here = () => { const p = page(); add({ type: 'here', page: p, visible: document.visibilityState === 'visible' }); };
     setInterval(() => { beat(); here(); send(false); }, 15_000);
     setTimeout(() => { here(); send(false); }, 1500);
   }

@@ -30,6 +30,8 @@ const UIS = ['original', 'horizon'];
 const TYPES = ['view', 'beat', 'click', 'swap', 'device', 'here', 'leave'];
 // a visitor counts as live while the tracker was heard from this recently (a hidden tab may only say so once a minute)
 const LIVE_MS = 75_000;
+const RECENT = 8; // Live now: the last few things each live visitor did
+const RECENT_TYPES = ['view', 'click', 'swap', 'blocked', 'feedback'];
 const CONTROL_KINDS = ['button', 'link', 'input', 'select', 'tab'];
 
 // The main pages of each interface (their nav), read from the app when it is
@@ -241,7 +243,14 @@ function createVisitors({ store, routes = ROUTES, now = () => Date.now(), maxVis
     for (const [at, type] of r.events) if (type === 'visit') since = at;
     let pageNow = r.here?.page || '';
     if (!pageNow) for (const [, type, detail] of r.events) if (type === 'view') pageNow = detail;
-    return { live: true, pageNow, away: r.here ? !r.here.visible : false, since };
+    // what they did lately this visit, newest first
+    const recent = [];
+    for (let i = r.events.length - 1; i >= 0 && recent.length < RECENT; i--) {
+      const [at, type, detail] = r.events[i];
+      if (at < since) break;
+      if (RECENT_TYPES.includes(type)) recent.push({ t: at, type, detail });
+    }
+    return { live: true, pageNow, away: r.here ? !r.here.visible : false, since, recent };
   }
 
   /** Every visitor, newest first, without the events. */
