@@ -170,3 +170,8 @@
 @media (max-width: 760px) {
   .sentry-demo-note.free:not(.folded) ~ .sentry-demo-wm { bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* exports are pretend: what the Download link says instead */
+.sentry-demo-toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 2147483000; max-width: min(440px, calc(100vw - 32px)); padding: 11px 16px; border-radius: 12px; background: rgba(18, 20, 28, .96); color: #eef1f6; border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 10px 30px rgba(0, 0, 0, .45); font: 500 13.5px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; text-align: center; transition: opacity .3s; }
+.sentry-demo-toast.gone { opacity: 0; pointer-events: none; }
+@media (max-width: 760px) { .sentry-demo-toast { bottom: auto; top: 16px; } }

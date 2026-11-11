@@ -133,6 +133,20 @@
     // an interface with no sidebar (Horizon): the pill on every screen
     pill.classList.toggle('free', !document.querySelector('.side-card'));
   };
+  // exports are pretend (demo/fakeExport.js): the Download link only says so
+  let note = null;
+  document.addEventListener('click', (e) => {
+    const a = e.target?.closest?.('a[href]');
+    if (!a || !/\/api\/exports\/[^/]+\/file(?:$|\?)/.test(a.getAttribute('href') || '')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!note) { note = document.createElement('div'); note.className = 'sentry-demo-toast'; note.setAttribute('role', 'status'); }
+    note.textContent = 'Downloads are turned off in the demo. In your own Sentry Six Manager this saves the video.';
+    document.body.appendChild(note);
+    note.classList.remove('gone');
+    clearTimeout(note.t);
+    note.t = setTimeout(() => note.classList.add('gone'), 4500);
+  }, true);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', place);
   else place();
   // the shell draws its sidebar after start: place the card once it is there

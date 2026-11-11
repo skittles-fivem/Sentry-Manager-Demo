@@ -20,6 +20,9 @@ const { decide, standIn } = require('./policy');
 const { seed } = require('./seed');
 const { createStore } = require('./store');
 const { createImporter } = require('./importer');
+const { createFakeExports } = require('./fakeExport');
+// exports are pretend: they show progress and finish, and never download (demo/fakeExport.js)
+const fakeExports = createFakeExports();
 
 // The owner's secrets are read once and taken out of the environment before
 // the app starts, so neither the app nor anything it starts ever sees them.
@@ -421,6 +424,9 @@ function gateInner(handler) {
     if (fake && !internalReq(req)) {
       const answered = await fakeAnswer(req, res, p, url);
       if (answered) return undefined;
+    }
+    if (p.startsWith('/api/exports') || /^\/api\/vehicles\/[^/]+\/exports$/.test(p)) {
+      if (!internalReq(req) && await fakeExports.answer(req, res, p, json)) return undefined;
     }
     if (p.startsWith('/api/') && !internalReq(req)) {
       // the CAN Bridge's upload API takes its own token: never on the demo

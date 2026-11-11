@@ -74,7 +74,7 @@ through the app's API on `localhost`.
 
 | | |
 | --- | --- |
-| Can | Swap their own browser to the Horizon interface and back; browse every page; play footage; scrub; see telemetry, the map and CAN data; read Drives, Moments and stats; watch the Encoder and Nodes at work; make an export and download it (at most 2 waiting or rendering at once, for everyone) |
+| Can | Swap their own browser to the Horizon interface and back; browse every page; play footage; scrub; see telemetry, the map and CAN data; read Drives, Moments and stats; watch the Encoder and Nodes at work; make an export (pretend: it waits, renders and finishes, but nothing is rendered and Download only says downloads are off, [`demo/fakeExport.js`](demo/fakeExport.js)) |
 | Can, on the demo's own Sentry USB | Change its settings, reboot it, shut it down, sync, re-run setup, check for and install updates, delete snapshots, back it up, gather diagnostics: the stand-in Pi carries them out, and forgets them at the reset |
 | Cannot | Delete, move, protect, trash or restore anything; start, pause or cancel conversions; change any setting, vehicle, policy, place or account; pair, rename or unpair a Sentry USB; upload an interface; turn on CAN uploads; sign out |
 | Never shown | The server's logs, sessions, certificates and CAN tokens (empty stand-ins), and the setup code (there is none) |
