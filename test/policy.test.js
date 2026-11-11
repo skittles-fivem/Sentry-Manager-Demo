@@ -58,3 +58,41 @@ test('lookalike paths are refused', () => {
     assert.equal(decide('POST', p).ok, false, p);
   }
 });
+
+// ---- the stand-in Sentry USB (demo/sentryUsb/): its changes, and only its
+const PI = '0123456789abcdef0123456789abcdef';
+const OTHER = 'fedcba9876543210fedcba9876543210';
+const px = (rest, id = PI) => `/api/sentryusb/${id}/proxy${rest}`;
+
+test("the stand-in Sentry USB's changes go through, for its id only", () => {
+  const allowed = [
+    ['PUT', '/setup/config'], ['POST', '/setup/run'], ['POST', '/system/reboot'], ['POST', '/system/shutdown'], ['POST', '/system/trigger-sync'],
+    ['POST', '/system/cancel-archive'], ['POST', '/system/toggle-drives'], ['POST', '/system/gadget-enable'], ['POST', '/system/gadget-disable'],
+    ['POST', '/system/check-update'], ['POST', '/system/update'], ['POST', '/system/backup'], ['POST', '/diagnostics/refresh'],
+    ['POST', '/diagnostics/download'], ['DELETE', '/snapshots/snap-000041']
+  ];
+  for (const [m, rest] of allowed) {
+    assert.deepEqual(decide(m, px(rest), { standInId: PI }), { ok: true, standIn: true }, `${m} ${rest}`);
+    // another Pi's id, or no stand-in: refused
+    assert.equal(decide(m, px(rest, OTHER), { standInId: PI }).status, 403, `${m} ${rest} other id`);
+    assert.equal(decide(m, px(rest)).status, 403, `${m} ${rest} without a stand-in`);
+  }
+});
+
+test('nothing else about Sentry USBs changes: pairing, renaming, unpairing, the queue, other Pi routes, lookalikes', () => {
+  const refused = [
+    ['POST', '/api/sentryusb/pair'], ['DELETE', '/api/sentryusb/pair'], ['PATCH', `/api/sentryusb/${PI}`], ['DELETE', `/api/sentryusb/${PI}`],
+    ['POST', `/api/sentryusb/${PI}/queue`], ['DELETE', `/api/sentryusb/${PI}/queue/q1`], ['PUT', '/api/sentryusb/security/settings'],
+    ['PUT', px('/notifications/settings')], ['PUT', px('/system/update-source')], ['POST', px('/setup/test-archive')], ['PUT', px('/config/preference')],
+    ['POST', px('/system/reboot/x')], ['POST', px('/system/../system/reboot')], ['POST', px('/system//reboot')],
+    ['POST', `${px('/system/reboot')}%2F`], ['POST', px('/system/rebootx')], ['DELETE', px('/snapshots/../x')], ['PUT', px('/setup/config', PI.toUpperCase())],
+    ['POST', `/api/sentryusb/${PI}x/proxy/system/reboot`], ['POST', `/api/sentryusb/${PI}/proxyx/system/reboot`]
+  ];
+  for (const [m, p] of refused) assert.equal(decide(m, p, { standInId: PI }).ok, false, `${m} ${p}`);
+  // a bad stand-in id never opens anything
+  assert.equal(decide('POST', px('/system/reboot', 'x'.repeat(32)), { standInId: 'x'.repeat(32) }).ok, false);
+});
+
+test("reading the Sentry USB pages stays allowed (the stand-in's status, logs, settings)", () => {
+  for (const p of ['/api/sentryusb', px('/status'), px('/logs/setup/tail'), px('/setup/config'), '/api/sentryusb/security']) assert.deepEqual(decide('GET', p, { standInId: PI }), { ok: true }, p);
+});
