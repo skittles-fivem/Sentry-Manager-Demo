@@ -22,8 +22,9 @@ const OWNER_BOARD = () => ({
     blocks: [
       // Battery temp, HV Battery Current, Battery power (computed)
       { type: 'wide', signals: ['calc.battTemp', 'can.SmoothBattCurrent132', 'calc.batteryPower'] },
-      // Battery Coolant Temp, 12V Battery Voltage, 12V Battery Current
-      { type: 'wide', signals: ['can.VCFRONT_tempCoolantBatInlet', 'can.v12vBattVoltage261', 'can.v12vBattCurrent261'] },
+      // Battery Coolant Temp, 12V Battery Voltage, 12V system current (the DC-DC's output: what the
+      // 12V side draws, 20-80 A driving; the 12V battery's own current is about 0 then)
+      { type: 'wide', signals: ['can.VCFRONT_tempCoolantBatInlet', 'can.v12vBattVoltage261', 'can.PCS_dcdcLvOutputCurrent'] },
       // Outside Temperature, Cabin Temperature, Steering
       { type: 'wide', signals: ['can.VCFRONT_tempAmbientFiltered', 'can.VCRIGHT_hvacCabinTempEst', 'dash.steering'] }
     ]

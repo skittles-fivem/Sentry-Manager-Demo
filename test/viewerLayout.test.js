@@ -15,7 +15,7 @@ test("the owner's layout: three 3-in-1 blocks in order and no docked List, °F a
   assert.deepEqual(b.blocks.map((x) => x.type), ['wide', 'wide', 'wide'], 'no List: docked, it squashed the Original Viewer\'s cameras');
   assert.deepEqual(b.blocks.slice(0, 3).map((x) => x.signals), [
     ['calc.battTemp', 'can.SmoothBattCurrent132', 'calc.batteryPower'],
-    ['can.VCFRONT_tempCoolantBatInlet', 'can.v12vBattVoltage261', 'can.v12vBattCurrent261'],
+    ['can.VCFRONT_tempCoolantBatInlet', 'can.v12vBattVoltage261', 'can.PCS_dcdcLvOutputCurrent'],
     ['can.VCFRONT_tempAmbientFiltered', 'can.VCRIGHT_hvacCabinTempEst', 'dash.steering']
   ]);
   // every id passes the manager's own check (server/index.js cleanBoards)

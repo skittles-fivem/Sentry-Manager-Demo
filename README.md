@@ -131,7 +131,7 @@ no visitor changes what the others see.
 [`demo/viewerLayout.js`](demo/viewerLayout.js) saves it for the demo
 account at every reset: three 3-in-1 blocks (Battery temp, HV Battery
 Current, Battery power; Battery Coolant Temp, 12V Battery Voltage, 12V
-Battery Current; Outside Temperature, Cabin Temperature, Steering), then
+system current; Outside Temperature, Cabin Temperature, Steering), then
 the *Every stat* List with *Changing only* ticked, in °F and mph. A
 visitor's own rearranging is answered as saved and forgotten.
 
