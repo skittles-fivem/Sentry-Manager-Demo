@@ -22,6 +22,7 @@ const { createStore } = require('./store');
 const { createImporter } = require('./importer');
 const { createFakeExports } = require('./fakeExport');
 const { noDownloads } = require('./noDownloads');
+const tachDial = require('./tachDial');
 // exports are pretend: they show progress and finish, and never download (demo/fakeExport.js)
 const fakeExports = createFakeExports();
 
@@ -204,7 +205,8 @@ const exportsBusy = async () => {
 };
 
 /** Add the banner to the app's page (the response is held and rewritten). */
-function withBanner(req, res, handler) {
+/** Answers through the app's handler with the body changed by transform(body, headers) (a Buffer back). */
+function withRewrite(req, res, handler, transform) {
   delete req.headers['accept-encoding'];
   const chunks = [];
   let head = null;
@@ -221,13 +223,7 @@ function withBanner(req, res, handler) {
   res.end = (c, ...rest) => {
     if (c && typeof c !== 'function') chunks.push(Buffer.from(c));
     let body = Buffer.concat(chunks);
-    if (/text\/html/.test(String(headers['content-type'] || '')) && !headers['content-encoding']) {
-      const html = body.toString('utf8');
-      if (html.includes('</head>') && !html.includes('/demo/banner.js')) { // every page of every interface (Viewer and Encoder too)
-        const ui = uiSwap.uiOf(req) || 'original';
-        body = Buffer.from(html.replace('</head>', `  <link rel="stylesheet" href="/demo/banner.css">\n  <script src="/demo/device.js" defer></script>\n  <script src="/demo/track.js" defer></script>\n  <script src="/demo/banner.js" data-ui="${ui}" defer></script>\n</head>`));
-      }
-    }
+    if (!headers['content-encoding']) body = transform(body, headers);
     delete headers['content-length'];
     // the real methods back first: HTTP/2's end() calls writeHead() itself
     res.writeHead = writeHead;
@@ -241,6 +237,17 @@ function withBanner(req, res, handler) {
     return end.call(res, body, ...rest);
   };
   return handler(req, res);
+}
+
+/** The demo note, tracker and Feedback in every page of every interface (the app, the Viewer and the Encoder). */
+function withBanner(req, res, handler) {
+  return withRewrite(req, res, handler, (body, headers) => {
+    if (!/text\/html/.test(String(headers['content-type'] || ''))) return body;
+    const html = body.toString('utf8');
+    if (!html.includes('</head>') || html.includes('/demo/banner.js')) return body;
+    const ui = uiSwap.uiOf(req) || 'original';
+    return Buffer.from(html.replace('</head>', `  <link rel="stylesheet" href="/demo/banner.css">\n  <script src="/demo/device.js" defer></script>\n  <script src="/demo/track.js" defer></script>\n  <script src="/demo/banner.js" data-ui="${ui}" defer></script>\n</head>`));
+  });
 }
 
 // ---- the pretend conversion with nodes (demo/fakeEncoder.js)
@@ -461,6 +468,12 @@ function gateInner(handler) {
     if (req.method === 'GET' || req.method === 'HEAD') {
       // the demo note and Feedback on every interface's pages: the app, the Viewer and the Encoder
       if (p === '/' || p === '/index.html' || /^\/studio\/(?:[\w-]+\.html)?$/.test(p)) return withBanner(req, res, handler);
+      // Horizon's speed dial that never pins (demo/tachDial.js)
+      if (tachDial.PATH.test(p)) {
+        delete req.headers['if-none-match'];
+        delete req.headers['if-modified-since'];
+        return withRewrite(req, res, handler, (body) => Buffer.from(tachDial.patchEncoderPage(body.toString('utf8'))));
+      }
     }
     return handler(req, res);
   };

@@ -89,7 +89,8 @@ paired nodes, a **Gaming Rig** (RTX 5090, 12 at once, about 6,000 fps), a **Gara
 saved and energy add up, the Hardware panel shows every GPU and each
 server's power, the Nodes page shows all three nodes online and busy, and Jobs
 lists it with two earlier runs. It takes about 45 minutes, shows its summary
-for three minutes, and starts again. Nothing is encoded and no node exists:
+for three minutes, and starts again. Horizon's speed dial tops out 1,000 to 2,000 fps above the
+fastest speed seen, so its needle never pins ([`demo/tachDial.js`](demo/tachDial.js)). Nothing is encoded and no node exists:
 the demo answers those pages' requests itself, in the shapes the app uses.
 
 ### The Sentry USB page has a live "Demo Model Y"
