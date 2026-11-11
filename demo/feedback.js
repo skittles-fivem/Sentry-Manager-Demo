@@ -18,7 +18,8 @@
 // machine as their browser describes it (OS, browser, screen, graphics...),
 // which the form tells them is sent, for tracking down bugs on their hardware.
 //
-// Limits: per address 3 an hour and 10 a day, 60 an hour in all; a honeypot
+// Limits: per address 10 an hour and 40 a day, 200 an hour in all (the answer
+// says how long to wait); a honeypot
 // field; at least 3 s between opening the page and sending (a signed token);
 // no empty or link-only messages. Hits are noted in the attack log; the
 // counts are kept in the demo's state, so a reset does not lift them.
@@ -33,7 +34,7 @@ const MAX_CONTACT = 100;
 const MAX_PAGE = 200;
 const MIN_MS = 3000;
 const TOKEN_MS = 6 * 3600_000;
-const LIMITS = { perHour: 3, perDay: 10, allPerHour: 60 };
+const LIMITS = { perHour: 10, perDay: 40, allPerHour: 200 };
 const TIMEOUT_MS = 8000;
 const SENT = 'Thanks, sent';
 const FAILED = "Couldn't send, try again later";
@@ -192,13 +193,15 @@ function createFeedback({ webhook = '', showIp = true, store, attackLog = null, 
     }
     doc.all = doc.all.filter((t) => t > now() - 3600_000);
   }
-  /** Which limit this one would break, or null. */
+  /** Which limit this one would break and the minutes until it lifts, or null. */
   function over(req) {
     prune();
     const mine = doc.by[who(req)] || [];
-    if (mine.filter((t) => t > now() - 3600_000).length >= LIMITS.perHour) return `${LIMITS.perHour} an hour`;
-    if (mine.length >= LIMITS.perDay) return `${LIMITS.perDay} a day`;
-    if (doc.all.length >= LIMITS.allPerHour) return `${LIMITS.allPerHour} an hour in all`;
+    const mins = (t) => Math.max(1, Math.ceil((t - now()) / 60_000));
+    const hour = mine.filter((t) => t > now() - 3600_000).sort((a, b) => a - b);
+    if (hour.length >= LIMITS.perHour) return { why: `${LIMITS.perHour} an hour`, wait: mins(hour[hour.length - LIMITS.perHour] + 3600_000) };
+    if (mine.length >= LIMITS.perDay) return { why: `${LIMITS.perDay} a day`, wait: mins([...mine].sort((a, b) => a - b)[mine.length - LIMITS.perDay] + 86400_000) };
+    if (doc.all.length >= LIMITS.allPerHour) return { why: `${LIMITS.allPerHour} an hour in all`, wait: mins([...doc.all].sort((a, b) => a - b)[0] + 3600_000), all: true };
     return null;
   }
   function count(req) {
@@ -232,7 +235,7 @@ function createFeedback({ webhook = '', showIp = true, store, attackLog = null, 
     }
     if (age < MIN_MS) {
       attackLog?.note('spam', req, `feedback: sent ${age} ms after opening the page`);
-      return fail(429);
+      return { status: 429, body: { ok: false, message: 'Give it a couple of seconds, then press Send again.' } };
     }
     if (!message || message.length > MAX_MESSAGE || contact.length > MAX_CONTACT || page.length > MAX_PAGE) return fail(400);
     if (onlyLinks(message)) {
@@ -241,8 +244,9 @@ function createFeedback({ webhook = '', showIp = true, store, attackLog = null, 
     }
     const limit = over(req);
     if (limit) {
-      attackLog?.note('rate-limit', req, `feedback: over ${limit}`);
-      return fail(429);
+      attackLog?.note('rate-limit', req, `feedback: over ${limit.why}`);
+      const when = limit.wait >= 90 ? `about ${Math.round(limit.wait / 60)} h` : `about ${limit.wait} min`;
+      return { status: 429, body: { ok: false, message: limit.all ? `Lots of feedback right now: try again in ${when}.` : `You've sent a lot of feedback, thanks! You can send more in ${when}.` } };
     }
     count(req);
     const body = payload({

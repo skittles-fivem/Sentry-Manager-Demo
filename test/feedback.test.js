@@ -137,25 +137,30 @@ test('the webhook URL is never in an answer or a log, whatever happens; a redire
   }
 });
 
-test('limits: 3 an hour and 10 a day per address, 60 an hour in all; noted in the attack log', async () => {
+test('limits: 10 an hour and 40 a day per address, 200 an hour in all, each saying how long to wait; noted in the attack log', async () => {
   const discord = await fakeDiscord();
   try {
     const { fb, attackLog } = feedbackWith({ discord });
-    for (let i = 0; i < 3; i++) assert.equal((await fb.submit(req('203.0.113.9'), fields(fb))).body.message, SENT);
-    assert.deepEqual(await fb.submit(req('203.0.113.9'), fields(fb)), { status: 429, body: { ok: false, message: FAILED } });
-    assert.match(attackLog.list({ kind: 'rate-limit' })[0].entries[0].sample, /3 an hour/);
-    // the next hours: up to 10 a day
-    for (let h = 0; h < 3; h++) { clock.t += 3600_000; for (let i = 0; i < 3; i++) await fb.submit(req('203.0.113.9'), fields(fb)); }
+    for (let i = 0; i < 10; i++) assert.equal((await fb.submit(req('203.0.113.9'), fields(fb))).body.message, SENT);
+    const r = await fb.submit(req('203.0.113.9'), fields(fb));
+    assert.equal(r.status, 429);
+    assert.match(r.body.message, /You've sent a lot of feedback.*in about \d+ min/);
+    assert.match(attackLog.list({ kind: 'rate-limit' })[0].entries[0].sample, /10 an hour/);
+    // the next hours: up to 40 a day
+    for (let h = 0; h < 3; h++) { clock.t += 3600_000; for (let i = 0; i < 10; i++) await fb.submit(req('203.0.113.9'), fields(fb)); }
     clock.t += 3600_000;
-    assert.equal((await fb.submit(req('203.0.113.9'), fields(fb))).status, 429);
-    assert.match(attackLog.list({ kind: 'rate-limit' })[0].entries[0].sample, /10 a day/);
-    assert.equal(discord.got.length, 10);
-    // 60 an hour from everyone
+    const d = await fb.submit(req('203.0.113.9'), fields(fb));
+    assert.equal(d.status, 429);
+    assert.match(d.body.message, /in about \d+ h/);
+    assert.match(attackLog.list({ kind: 'rate-limit' })[0].entries[0].sample, /40 a day/);
+    assert.equal(discord.got.length, 40);
+    // 200 an hour from everyone
     clock.t += 2 * 86400_000;
     const sent = [];
-    for (let i = 0; i < 61; i++) sent.push((await fb.submit(req(`198.51.${Math.floor(i / 3)}.${i % 3 + 1}`), fields(fb))).status);
-    assert.equal(sent.filter((s) => s === 200).length, 60);
-    assert.equal(sent[60], 429);
+    for (let i = 0; i < 201; i++) sent.push(await fb.submit(req(`198.51.${Math.floor(i / 10)}.${i % 10 + 1}`), fields(fb)));
+    assert.equal(sent.filter((s) => s.status === 200).length, 200);
+    assert.equal(sent[200].status, 429);
+    assert.match(sent[200].body.message, /Lots of feedback right now/);
   } finally {
     await discord.close();
   }
