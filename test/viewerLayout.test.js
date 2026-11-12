@@ -25,9 +25,11 @@ test("the owner's layout: three 3-in-1 blocks in order and no docked List, °F a
 test('set-up saves it through the API; a manager without stat boards is skipped', async () => {
   const calls = [];
   assert.equal(await seedViewerLayout(async (m, p, body) => { calls.push([m, p, body]); return body; }), true);
-  assert.equal(calls[0][0], 'PUT');
-  assert.equal(calls[0][1], '/api/dashboards');
-  assert.equal(calls[0][2].boards[0].blocks.length, 3);
+  // the car-data bar turned on (off on a fresh install), then the layout
+  assert.deepEqual(calls[0], ['POST', '/api/can/viewer-car-data', { enabled: true }]);
+  assert.equal(calls[1][0], 'PUT');
+  assert.equal(calls[1][1], '/api/dashboards');
+  assert.equal(calls[1][2].boards[0].blocks.length, 3);
   const logs = [];
   assert.equal(await seedViewerLayout(async () => { throw Object.assign(new Error('nope'), { status: 404 }); }, (m) => logs.push(m)), false);
   assert.match(logs[0], /no stat boards/);

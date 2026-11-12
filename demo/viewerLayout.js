@@ -34,6 +34,15 @@ const OWNER_BOARD = () => ({
 
 /** Saves the owner's layout for the demo account; a manager without stat boards (404) is skipped. */
 async function seedViewerLayout(api, log = () => {}) {
+  // the car-data bar is a server setting, off on a fresh install (the demo starts
+  // fresh every time): on, for every visitor's Viewer in every interface
+  try {
+    await api('POST', '/api/can/viewer-car-data', { enabled: true });
+    log('Viewer car data on');
+  } catch (err) {
+    // a manager from before the setting has the bar on already
+    if (err.status !== 404) log(`Viewer car data not turned on: ${err.message}`);
+  }
   try {
     await api('PUT', '/api/dashboards', OWNER_BOARD());
     log('Viewer car-data layout set (the owner\'s)');
