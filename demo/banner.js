@@ -239,7 +239,34 @@
     addEventListener('resize', soon);
     soon();
   }
+  // An interface with a bar fixed along the bottom of a phone (Sentry Six's
+  // #phone-nav): the watermark and the note sit above it instead of on its
+  // buttons, the folded note as a small pill on the right; on a wide screen
+  // the note sits just right of its sidebar
+  function aboveBottomBar() {
+    if (embedded || aboveBottomBar.on) return;
+    const bar = document.getElementById('phone-nav');
+    if (!bar) return;
+    aboveBottomBar.on = true;
+    const root = document.documentElement;
+    const fit = () => {
+      const cs = getComputedStyle(bar);
+      const r = bar.getBoundingClientRect();
+      const shown = cs.display !== 'none' && cs.position === 'fixed' && r.height > 0;
+      root.classList.toggle('sentry-demo-bottombar', shown);
+      if (shown) root.style.setProperty('--sentry-demo-bar', `${Math.round(innerHeight - r.top)}px`);
+      // a wide screen: the note just right of the sidebar (#sidebar), off its links
+      const side = document.getElementById('sidebar');
+      const sr = side?.getBoundingClientRect();
+      const beside = Boolean(side && !shown && sr.width > 0 && sr.left <= 1 && getComputedStyle(side).display !== 'none');
+      root.classList.toggle('sentry-demo-sidebar', beside);
+      if (beside) root.style.setProperty('--sentry-demo-side', `${Math.round(sr.right)}px`);
+    };
+    new ResizeObserver(fit).observe(bar);
+    addEventListener('resize', fit);
+    fit();
+  }
   // the shell draws its sidebar after start: place the card once it is there
-  new MutationObserver(() => { if (!card.isConnected && document.querySelector('.side-card')) place(); })
+  new MutationObserver(() => { if (!card.isConnected && document.querySelector('.side-card')) place(); if (!aboveBottomBar.on) aboveBottomBar(); })
     .observe(document.documentElement, { childList: true, subtree: true });
 })();

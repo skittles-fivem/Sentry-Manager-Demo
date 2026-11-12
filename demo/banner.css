@@ -190,3 +190,19 @@
 @media (max-width: 760px) {
   .sentry-demo-note.folded ~ .sentry-demo-wm { left: calc(8px + env(safe-area-inset-left, 0px)); right: auto; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding: 4px 8px 5px; font-size: 10.5px; line-height: 1.3; max-width: 112px; opacity: 0.75; }
 }
+/* a phone interface with a bar along the bottom (Sentry Six): the note and the watermark above it, side by side when folded */
+@media (max-width: 760px) {
+  .sentry-demo-bottombar .sentry-demo-note:not(.folded) { bottom: calc(var(--sentry-demo-bar, 80px) + 10px); }
+  .sentry-demo-bottombar .sentry-demo-note:not(.folded) ~ .sentry-demo-wm { bottom: calc(var(--sentry-demo-bar, 80px) + 96px); }
+  .sentry-demo-bottombar .sentry-demo-note.folded {
+    top: auto; left: auto; right: calc(10px + env(safe-area-inset-right, 0px)); bottom: calc(var(--sentry-demo-bar, 80px) + 10px);
+    flex-direction: row; gap: 2px; border-radius: 999px; border-right: 1px solid rgba(245, 184, 61, 0.45); padding: 2px 4px;
+    font-size: 11.5px;
+  }
+  .sentry-demo-bottombar .sentry-demo-note.folded .sentry-demo-feedback { padding: 2px 6px; font-size: 11.5px; }
+  .sentry-demo-bottombar .sentry-demo-note.folded ~ .sentry-demo-wm { bottom: calc(var(--sentry-demo-bar, 80px) + 10px); }
+}
+/* a wide screen with a sidebar the note cannot go in (Sentry Six): the note just right of it */
+@media (min-width: 761px) {
+  .sentry-demo-sidebar .sentry-demo-note { left: calc(var(--sentry-demo-side, 0px) + 14px); }
+}

@@ -15,7 +15,7 @@
 services:
   sentry-manager-demo:
     image: ghcr.io/skittles-fivem/sentry-manager-demo:latest
-    # Let's Encrypt (TLS_ACME_DOMAIN) and the stand-in Sentry USB need a manager
+    # Let's Encrypt (TLS_ACME_DOMAIN) needs a manager
     # image that has them; until the published one does, build on one that does:
     # build:
     #   context: .
@@ -35,7 +35,7 @@ services:
       DEMO_EXPORT_QUEUE: "2"
       # the Encoder's pretend conversion over this server and two nodes (off: none)
       DEMO_FAKE_ENCODER: "on"
-      # the stand-in Sentry USB visitors may change (off: none)
+      # the Sentry USB tab's info for each demo car, as a Pi writes it on the share (off: none)
       DEMO_SENTRYUSB: "on"
       # From .env (see .env.example); empty turns each off.
       # the owner page at /owner: local network only, with this password

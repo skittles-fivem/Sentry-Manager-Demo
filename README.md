@@ -56,8 +56,7 @@ on; with an image that lacks it, `TLS_ACME_DOMAIN` does nothing and the
 self-signed certificate is served (Cloudflare's **Full** works with that).
 To use it before it is in `latest`, build the demo on a manager image that
 has it: `docker build --build-arg MANAGER_TAG=<tag> -t sentry-manager-demo .`
-(or the `build:` lines in `docker-compose.yml`). The stand-in Sentry USB
-needs the same (below).
+(or the `build:` lines in `docker-compose.yml`).
 
 **Or** put it behind a reverse proxy that does HTTPS with a real certificate:
 
@@ -75,7 +74,6 @@ through the app's API on `localhost`.
 | | |
 | --- | --- |
 | Can | Swap their own browser to the Horizon interface and back; browse every page; play footage; scrub; see telemetry, the map and CAN data; read Drives, Moments and stats; watch the Encoder and Nodes at work; save no files: every download (footage, logs, the support bundle, CAN logs, the Sentry USB's diagnostics and backups) says downloads are off and the server sends such files back empty ([`demo/noDownloads.js`](demo/noDownloads.js)); make an export (pretend: it waits, renders and finishes, but nothing is rendered and Download only says downloads are off, [`demo/fakeExport.js`](demo/fakeExport.js)) |
-| Can, on the demo's own Sentry USB | Change its settings, reboot it, shut it down, sync, re-run setup, check for and install updates, delete snapshots, back it up, gather diagnostics: the stand-in Pi carries them out, and forgets them at the reset |
 | Cannot | Delete, move, protect, trash or restore anything; start, pause or cancel conversions; change any setting, vehicle, policy, place or account; pair, rename or unpair a Sentry USB; upload an interface; turn on CAN uploads; sign out |
 | Never shown | The server's logs, sessions, certificates and CAN tokens (empty stand-ins), and the setup code (there is none) |
 
@@ -93,26 +91,16 @@ for three minutes, and starts again. Horizon's speed dial tops out 1,000 to 2,00
 fastest speed seen, so its needle never pins ([`demo/tachDial.js`](demo/tachDial.js)). Nothing is encoded and no node exists:
 the demo answers those pages' requests itself, in the shapes the app uses.
 
-### The Sentry USB page has a live "Demo Model Y"
+### The Sentry USB tab shows each car's Pi
 
-A stand-in Sentry USB, the Pi in the car
-([`demo/sentryUsb/`](demo/sentryUsb/)), starts with the demo, as a child
-process once the app is set up. It pairs the way a person does in Settings:
-the demo opens a pairing slot through the app's API on localhost, and the
-stand-in proves the code over the app's device port with the real link
-protocol (v2, then its link key). Its settings file, logs, snapshots and
-backups are in `/data`, so they start over at every reset.
-
-Visitors may change it, and only it: [`demo/policy.js`](demo/policy.js)
-lets through exactly the app's `/api/sentryusb/<its id>/proxy/...` routes
-the stand-in carries out (settings saves, reboot, shut down, sync, setup,
-updates, snapshot deletes, backups, diagnostics), 20 a minute per visitor.
-It applies the Pi's own rules: only settable keys change, values are
-checked, secrets are masked and kept when sent empty, and every change is
-logged as the Pi logs it. A reboot comes back in 20 to 30 seconds, a shut
-down after 3 minutes. It needs a manager image with the Sentry USB link
-(the manager's release branch, `MANAGER_TAG`); without it the page is not
-there and the stand-in does not start. `DEMO_SENTRYUSB=off` leaves it out.
+The manager reads what a Sentry USB (the Pi in the car) writes on the car's
+share, `.sentryusb/device-status.json` next to `RecentClips/`. The demo has no
+Pi, so [`demo/sentryUsbInfo.js`](demo/sentryUsbInfo.js) writes that file for
+every demo car at every start and again every 4 minutes (never "not heard
+from"): its storage and drives, version, CPU temperature, and the car's
+battery, cabin and outside temperatures, tire pressures and parked time, a
+little different per car and drifting over the day. Never a place, position,
+odometer or VIN. `DEMO_SENTRYUSB=off` leaves it out.
 
 ### Swap to Horizon UI
 
@@ -229,7 +217,7 @@ footage folder by mistake, it refuses to start instead.
 | `DEMO_MORE_CARS` | `on` | Three more cars (Model 3, S, X) made from your footage as links, each a different slice (`off`: just the one car) |
 | `DEMO_SHOWCASE` | `on` | At every start, through the app's API: each car's encoding settings, policies, saved places, stars, protected clips, a few recordings in the Recycle Bin and one export |
 | `DEMO_IMPORT_DIR` | `/demo-import` | Where the prepared footage folder is mounted (for a local run) |
-| `DEMO_SENTRYUSB` | `on` | The stand-in Sentry USB visitors may change (`off`: none) |
+| `DEMO_SENTRYUSB` | `on` | The Sentry USB tab's made-up info for each car (`off`: none) |
 | `DEMO_OWNER_PASSWORD` | | The owner page's password (from `.env`); empty: no owner page |
 | `DEMO_FEEDBACK_WEBHOOK` | | The Discord webhook for feedback (from `.env`); empty: feedback off |
 | `TLS_ACME_DOMAIN`, `TLS_ACME_EMAIL` | | Let's Encrypt for this name (a manager image with it, see "On the internet") |
@@ -359,7 +347,7 @@ gh release create seed seed.tar --title "Demo drives" --notes "Highway-only demo
 ## Development
 
 ```bash
-npm test                                         # the demo layer (MANAGER_ROOT=<manager checkout> for the Sentry USB tests)
+npm test                                         # the demo layer
 node tools/synthetic.js <manager checkout> seed/footage/demo-car 4   # test footage
 docker build -t manager-demo:dev .
 docker run --rm -p 9000:9000 --read-only --user 1000:1000 --cap-drop ALL \
@@ -372,7 +360,7 @@ python3 tools/screens.py https://localhost:9000 shots/   # every page, desktop a
 | --- | --- |
 | `demo/preload.js` | Loaded into the app (`NODE_OPTIONS`): signs everyone in as `demo`, puts the gate in front of the app, starts fresh, resets |
 | `demo/policy.js` | What a visitor may do |
-| `demo/sentryUsb/` | The stand-in Sentry USB: the Pi's rules and actions (`standIn.js`), the link (`link.js`), its process (`child.js`), pairing it (`launcher.js`) |
+| `demo/sentryUsbInfo.js` | The Sentry USB tab's info file for each car |
 | `demo/owner.js`, `demo/owner/` | The owner page |
 | `demo/attackLog.js`, `demo/rateLimit.js`, `demo/clientAddress.js` | The attack log, rate limits and bans, the real (Cloudflare-aware) client address |
 | `demo/importer.js` | The owner's footage: upload, sanitize, publish |

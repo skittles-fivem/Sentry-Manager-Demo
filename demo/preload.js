@@ -159,11 +159,8 @@ const isLoopback = (a) => a === '127.0.0.1' || a === '::1' || a === '::ffff:127.
 const internalReq = (req) => req.headers['x-demo-internal'] === INTERNAL && isLoopback(req.socket?.remoteAddress);
 Auth.prototype.user = function user() { return DEMO_USER; };
 Auth.prototype.needsSetup = function needsSetup() { return false; };
-// The demo's own set-up calls count as "password just confirmed"; so do the
-// changes visitors may make to the stand-in Sentry USB (demo/policy.js: the
-// app asks for a confirmed password before a settings save or a setup run).
-const standInReqs = new WeakSet();
-Auth.prototype.recentlyConfirmed = function recentlyConfirmed(req) { return Boolean(req && (internalReq(req) || standInReqs.has(req))); };
+// The demo's own set-up calls count as "password just confirmed".
+Auth.prototype.recentlyConfirmed = function recentlyConfirmed(req) { return Boolean(req && internalReq(req)); };
 // no setup code in the log: there is nothing to sign in to
 Auth.prototype.bootstrap = function bootstrap() {};
 
@@ -286,8 +283,6 @@ const bans = createBans({ store });
 const limits = createRateLimits({
   // every request of one address (the Viewer asks for a lot: generous)
   any: [Number(process.env.DEMO_RATE_PER_MINUTE || 3000), 60_000],
-  // changes to the stand-in Sentry USB
-  standIn: [20, 60_000],
   // the owner password
   owner: [10, 15 * 60_000],
   // visitor activity (demo/track.js posts about every 15 s)
@@ -304,7 +299,7 @@ const countryOf = (req) => {
   const c = req.headers['cf-ipcountry'];
   return typeof c === 'string' ? c.trim().toUpperCase().slice(0, 2) : '';
 };
-let standInRun = null; // demo/sentryUsb/launcher.js, once the demo is set up
+let usbInfo = null; // demo/sentryUsbInfo.js, once the demo is set up
 const reset = (why) => {
   say(`reset: ${why}, starting over with fresh demo data`);
   store.flush();
@@ -315,7 +310,7 @@ const owner = createOwnerPage({
   password: OWNER_PASSWORD, store, attackLog, bans, limits, addressOf: who.of,
   net: { proxy: who.proxy, listedProxies: who.listedProxies, gateways: readGateways() }, importer,
   tlsDir: path.join(DATA, 'tls'), reset: () => reset('Reset now on the owner page'), resetHours: RESET_HOURS,
-  standIn: () => (standInRun ? { name: 'Demo Model Y', paired: standInRun.paired } : null), feedbackOn: feedback.enabled, visitors, log: say
+  sentryUsb: () => (usbInfo ? { cars: usbInfo.cars } : null), feedbackOn: feedback.enabled, visitors, log: say
 });
 if (owner.enabled) say('owner page on at /owner (local network only)');
 if (feedback.enabled) say('feedback on (Discord)');
@@ -441,7 +436,7 @@ function gateInner(handler) {
     if (p.startsWith('/api/') && !internalReq(req)) {
       // the CAN Bridge's upload API takes its own token: never on the demo
       if (p === '/api/can/logs' || p.startsWith('/api/can/logs/')) return json(res, 404, { error: 'Not found' });
-      const v = decide(req.method, p, { standInId: standInRun?.id || null });
+      const v = decide(req.method, p);
       if (!v.ok && v.hidden) return json(res, 200, standIn(p));
       if (!v.ok && v.quiet) {
         req.resume();
@@ -452,16 +447,6 @@ function gateInner(handler) {
         visitors.blocked(who.of(req), `${req.method} ${p}`);
         req.resume();
         return json(res, v.status, { error: v.error, code: 'DEMO' });
-      }
-      if (v.standIn) {
-        // the stand-in Pi's changes: allowed, at a visitor's pace
-        const lim = limits.take('standIn', who.of(req));
-        if (lim.wait) {
-          if (lim.first) attackLog.note('rate-limit', req, `stand-in Sentry USB: ${req.method} ${p}`);
-          req.resume();
-          return json(res, 429, { error: `Slow down a little: try again in ${lim.wait} s.`, code: 'DEMO_BUSY' });
-        }
-        standInReqs.add(req);
       }
       if (v.export && await exportsBusy()) return json(res, 429, { error: 'The demo is already making exports for other visitors. Try again in a few minutes.', code: 'DEMO_BUSY' });
     }
@@ -518,15 +503,12 @@ waitForPort().then(() => seed({ port: listenPort, token: INTERNAL, seedDir: SEED
     const car = cars?.[0];
     if (FAKE_ENCODER && car) {
       fake = createFakeEncoder({ sourceRoot: car.studioRoot || path.join(FOOTAGE, car.id, 'TeslaCam'), vehicleId: car.id, vehicleName: car.name });
-      say('pretend conversion on this server and two nodes started');
+      say('pretend conversion on this server and three nodes started');
     }
-    // the stand-in Sentry USB, paired through the app's API (demo/sentryUsb/)
+    // the Sentry USB tab's info for every car, as a Pi would write it on the share (demo/sentryUsbInfo.js)
     if (on(process.env.DEMO_SENTRYUSB, 'on')) {
-      const { startStandIn } = require('./sentryUsb/launcher');
-      standInRun = startStandIn({
-        api: (method, p, body) => call(listenPort, INTERNAL, method, p, body), port: Number(process.env.CAN_PORT || 10000),
-        stateDir: path.join(DATA, 'demo-sentryusb'), app: APP, log: say
-      });
+      const { startSentryUsbInfo } = require('./sentryUsbInfo');
+      usbInfo = startSentryUsbInfo({ cars: (cars || []).map((c) => ({ name: c.name, root: c.studioRoot })), log: say });
     }
     say('ready');
     // the owner's prepared folder at /demo-import: the demo builds itself from

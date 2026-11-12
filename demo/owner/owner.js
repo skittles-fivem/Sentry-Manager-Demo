@@ -48,12 +48,12 @@
     const tiles = [[s.visitors.today, 'visitors today'], [st.addresses || 0, 'addresses in the log'], [st.last24h || 0, 'seen in the log in 24 h'], [s.bans.length, 'bans in force'], [st.rows || 0, 'log rows (5,000 at most)']];
     $('tiles').replaceChildren(...tiles.map(([n, label]) => el('div', { class: 'tile' }, el('b', {}, n), el('span', {}, label))));
     const days = Object.entries(s.visitors.days || {}).sort().slice(-7).map(([d, n]) => `${d.slice(5)}: ${n}`).join(' · ');
-    const si = s.demo.standIn;
+    const su = s.demo.sentryUsb;
     kv($('demo'), [
       ['Resets every', s.demo.resetHours ? `${s.demo.resetHours} h` : 'only on restart'],
       ['Kept across resets', s.demo.stateKept ? `yes (${s.demo.stateDir})` : 'no: mount the /demo-state volume (the log, bans and certificates are lost at each reset)'],
       ['Visitors, 7 days', days || '-'],
-      ['Sentry USB', si ? `${si.name}: ${si.paired ? 'paired' : 'pairing'}` : 'off (needs a manager image with the Sentry USB link)'],
+      ['Sentry USB', su ? `info for ${su.cars.join(', ') || 'no cars yet'}` : 'off'],
       ['Feedback', s.demo.feedback ? 'on (Discord)' : 'off (DEMO_FEEDBACK_WEBHOOK not set)']
     ]);
     $('reset').disabled = !s.demo.resetAvailable;

@@ -88,12 +88,12 @@ function certificateStatus(tlsDir) {
 /**
  * o: password, store, attackLog, bans, limits (demo/rateLimit.js: 'owner'),
  * addressOf, net ({ proxy, listedProxies, gateways }), importer, tlsDir,
- * reset() (the demo starts over), resetHours, stateKept, standIn() (its
+ * reset() (the demo starts over), resetHours, stateKept, sentryUsb() (its
  * state), visitors (demo/visitors.js), log, now, webDir (the page's files).
  */
 function createOwnerPage({
   password = '', store, attackLog, bans, limits, addressOf, net = {}, importer = null, tlsDir = '/data/tls', reset = null, resetHours = 24,
-  standIn = () => null, feedbackOn = false, visitors = null, log = () => {}, now = () => Date.now(), webDir = path.join(__dirname, 'owner')
+  sentryUsb = () => null, feedbackOn = false, visitors = null, log = () => {}, now = () => Date.now(), webDir = path.join(__dirname, 'owner')
 }) {
   const enabled = typeof password === 'string' && password.length > 0;
   const want = enabled ? crypto.createHash('sha256').update(password).digest() : null;
@@ -176,7 +176,7 @@ function createOwnerPage({
         const st = attackLog.stats();
         send(res, 200, {
           log: attackLog.list(filters(url)), stats: st, visitors: { today: st.visitorsToday, days: st.visitorDays },
-          bans: bans.list(), demo: { resetHours, resetAvailable: typeof reset === 'function', stateKept: store.writable, stateDir: store.dir, feedback: feedbackOn, standIn: standIn() },
+          bans: bans.list(), demo: { resetHours, resetAvailable: typeof reset === 'function', stateKept: store.writable, stateDir: store.dir, feedback: feedbackOn, sentryUsb: sentryUsb() },
           tls: certificateStatus(tlsDir), you: addressOf(req)
         });
         return true;

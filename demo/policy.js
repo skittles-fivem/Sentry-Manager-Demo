@@ -45,40 +45,14 @@ const QUIET_WRITES = [
   /^PUT \/api\/dashboards$/
 ];
 
-// The demo's stand-in Sentry USB (demo/sentryUsb/): the one Pi visitors may
-// change, because it is the demo's own and forgets everything at the reset.
-// Exactly these requests to it, through the manager's proxy route
-// (/api/sentryusb/<its id>/proxy/...), and only for its id: what it carries
-// out (settings saves, reboot, shut down, sync, setup, updates, snapshots,
-// backups, diagnostics). Pairing, renaming, unpairing and the queue stay off.
-const STAND_IN_WRITES = [
-  ['PUT', /^\/setup\/config$/],
-  ['POST', /^\/setup\/run$/],
-  ['POST', /^\/system\/(reboot|shutdown|trigger-sync|cancel-archive|toggle-drives|gadget-enable|gadget-disable|check-update|update|backup)$/],
-  ['POST', /^\/diagnostics\/(refresh|download)$/],
-  ['DELETE', /^\/snapshots\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/]
-];
-const PROXY_RE = /^\/api\/sentryusb\/([0-9a-f]{32})\/proxy(\/[A-Za-z0-9/_.-]{1,300})$/;
-
-/** Whether this is one of the stand-in's allowed changes. */
-function standInWrite(m, p, standInId) {
-  if (!standInId || !/^[0-9a-f]{32}$/.test(standInId)) return false;
-  const hit = PROXY_RE.exec(p);
-  if (!hit || hit[1] !== standInId) return false;
-  const rest = hit[2];
-  if (rest.includes('//') || rest.split('/').some((s) => s === '.' || s === '..')) return false;
-  return STAND_IN_WRITES.some(([method, re]) => method === m && re.test(rest));
-}
-
 const REFUSED = 'This is a demo, so changes are turned off. Everything else works as it does at home.';
 
 /**
  * The verdict for one request: { ok: true }, { ok: true, export: true } (let
- * through if the export queue has room), { ok: true, standIn: true } (a
- * change to the stand-in Sentry USB), or { ok: false, status, error,
- * stand-in } for a refusal. opts.standInId: the stand-in's id, once paired.
+ * through if the export queue has room), or { ok: false, status, error,
+ * stand-in } for a refusal.
  */
-function decide(method, rawPath, { standInId = null } = {}) {
+function decide(method, rawPath) {
   const m = String(method || '').toUpperCase();
   const p = String(rawPath || '');
   if (!p.startsWith('/api/')) return { ok: true };
@@ -86,7 +60,6 @@ function decide(method, rawPath, { standInId = null } = {}) {
     if (HIDDEN_GETS.some((re) => re.test(p))) return { ok: false, status: 200, hidden: true };
     return { ok: true };
   }
-  if (standInWrite(m, p, standInId)) return { ok: true, standIn: true };
   if (QUIET_WRITES.some((re) => re.test(`${m} ${p}`))) return { ok: false, status: 200, quiet: true };
   if (m === 'POST' && READ_POSTS.some((re) => re.test(p))) return { ok: true };
   if (m === 'POST' && EXPORT_POSTS.some((re) => re.test(p))) return { ok: true, export: true };
@@ -111,4 +84,4 @@ function standIn(rawPath) {
   return { demo: true };
 }
 
-module.exports = { decide, standIn, REFUSED, HIDDEN_GETS, READ_POSTS, STAND_IN_WRITES };
+module.exports = { decide, standIn, REFUSED, HIDDEN_GETS, READ_POSTS };
