@@ -220,6 +220,7 @@ footage folder by mistake, it refuses to start instead.
 | `DEMO_MORE_CARS` | `on` | Three more cars (Model 3, S, X) made from your footage as links, each a different slice (`off`: just the one car) |
 | `DEMO_SHOWCASE` | `on` | At every start, through the app's API: each car's encoding settings, policies, saved places, stars, protected clips, a few recordings in the Recycle Bin and one export |
 | `DEMO_IMPORT_DIR` | `/demo-import` | Where the prepared footage folder is mounted (for a local run) |
+| `DEMO_ARCHIVE_GAP` | `off` | The manager's "only partly archived" check (`on`: the real one; off, as the demo drives are cut to highway minutes on purpose) |
 | `DEMO_SENTRYUSB` | `on` | The Sentry USB tab's made-up info for each car (`off`: none) |
 | `DEMO_OWNER_PASSWORD` | | The owner page's password (from `.env`); empty: no owner page |
 | `DEMO_FEEDBACK_WEBHOOK` | | The Discord webhook for feedback (from `.env`); empty: feedback off |

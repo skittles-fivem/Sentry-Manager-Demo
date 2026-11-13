@@ -144,6 +144,12 @@ if (importer && SEED === importer.activeSeed() && on(process.env.DEMO_MORE_CARS,
   }
 }
 
+// ---- no "only partly archived" days: the demo's footage is cut to highway
+// minutes on purpose, so the manager's archive-gap check is quiet (demo/archiveGap.js)
+if (!on(process.env.DEMO_ARCHIVE_GAP, 'off')) {
+  if (require('./archiveGap').install(APP)) say('archive-gap check quiet (the demo drives are cut to highway minutes)');
+}
+
 // ---- "Swap to Horizon UI", per browser (demo/uiSwap.js): the app's packs
 // answer Horizon inside a request from a browser with the demo's cookie
 const uiSwap = require('./uiSwap');
