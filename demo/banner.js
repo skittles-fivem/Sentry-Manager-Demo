@@ -8,6 +8,19 @@
   // which interface this browser sees (demo/uiSwap.js: the gate says so)
   const UI = document.currentScript?.dataset.ui === 'horizon' ? 'horizon' : 'original';
   const SWAP = UI === 'horizon' ? 'Swap to original UI' : 'Swap to Horizon UI';
+  // Each interface names a few pages its own way (Horizon's home is #/dashboard,
+  // Sentry Six's #/overview): a page name from the other one, after a swap or
+  // from an old link, becomes this one's before the page draws, never "Page not found"
+  const SAME_PAGE = UI === 'horizon'
+    ? { overview: 'dashboard', notifications: 'alerts', activity: 'jobs' }
+    : { dashboard: 'overview', alerts: 'notifications' };
+  const samePage = () => {
+    if (window.top !== window) return;
+    const m = /^#\/?([\w-]+)(.*)$/.exec(location.hash);
+    if (m && SAME_PAGE[m[1]]) history.replaceState(null, '', `${location.pathname}${location.search}#/${SAME_PAGE[m[1]]}${m[2]}`);
+  };
+  samePage();
+  addEventListener('hashchange', samePage);
   const swapButton = `<button type="button" class="sentry-demo-swap" data-ui="${UI === 'horizon' ? 'original' : 'horizon'}">${SWAP}</button>`;
   const TEXT = '<b>Demo</b> · real highway drives · changes are turned off · visits are logged';
   const LINK = 'https://github.com/skittles-fivem/Sentry-Manager';
