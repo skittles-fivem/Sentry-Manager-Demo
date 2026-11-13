@@ -23,6 +23,7 @@ const { createImporter } = require('./importer');
 const { createFakeExports } = require('./fakeExport');
 const { noDownloads } = require('./noDownloads');
 const tachDial = require('./tachDial');
+const noFootageDays = require('./noFootageDays');
 // exports are pretend: they show progress and finish, and never download (demo/fakeExport.js)
 const fakeExports = createFakeExports();
 
@@ -467,6 +468,12 @@ function gateInner(handler) {
     if (req.method === 'GET' || req.method === 'HEAD') {
       // the demo note and Feedback on every interface's pages: the app, the Viewer and the Encoder
       if (p === '/' || p === '/index.html' || /^\/studio\/(?:[\w-]+\.html)?$/.test(p)) return withBanner(req, res, handler);
+      // Sentry Six's Overview without "No footage on N recent days" (demo/noFootageDays.js)
+      if (noFootageDays.PATH.test(p)) {
+        delete req.headers['if-none-match'];
+        delete req.headers['if-modified-since'];
+        return withRewrite(req, res, handler, (body) => Buffer.from(noFootageDays.patchStatus(body.toString('utf8'))));
+      }
       // Horizon's speed dial that never pins (demo/tachDial.js)
       if (tachDial.PATH.test(p)) {
         delete req.headers['if-none-match'];
