@@ -89,6 +89,7 @@
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; color: #aeb7c6; font-size: 17px; line-height: 1; cursor: pointer;
 }
+.sentry-demo-close svg { display: block; }
 .sentry-demo-close:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 .sentry-demo-note.folded .sentry-demo-text,
 .sentry-demo-note.folded .sentry-demo-link,

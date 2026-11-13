@@ -44,7 +44,8 @@
     + swapButton
     + `<a class="sentry-demo-link" href="${LINK}" target="_blank" rel="noopener">Get it</a>`
     + '<a class="sentry-demo-feedback" href="/demo/feedback">Feedback</a>'
-    + '<button type="button" class="sentry-demo-close" aria-label="Fold the demo note">×</button>';
+    // a drawn ×: a font's × glyph sits a little below the middle of its line
+    + '<button type="button" class="sentry-demo-close" aria-label="Fold the demo note"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>';
   // the watermark, bottom right on every page
   const wm = document.createElement('a');
   wm.className = 'sentry-demo-wm';
