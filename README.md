@@ -102,18 +102,21 @@ battery, cabin and outside temperatures, tire pressures and parked time, a
 little different per car and drifting over the day. Never a place, position,
 odometer or VIN. `DEMO_SENTRYUSB=off` leaves it out.
 
-### Swap to Horizon UI
+### Each visitor's own interface
 
 The demo note has a **Swap to Horizon UI** button (and then **Swap to
-original UI**): that browser alone is shown Horizon, the synthwave interface
-pack that comes with the app, on every page. It is a cookie
-(`demo_ui=horizon`, HttpOnly, SameSite=Strict, Secure), set by
-`POST /demo/ui {"ui": "horizon" | "original"}`; the demo makes the app's
-interface packs answer Horizon for requests that carry it
-([`demo/uiSwap.js`](demo/uiSwap.js)), the way the app's own `/original`
-cookie gives one browser the built-in interface. The interface chosen for
-everyone is never changed, and `PUT /api/ui-packs/active` stays refused, so
-no visitor changes what the others see.
+original UI**), and Settings > Look & interface's **Use this interface**
+works for any of the built-in interfaces (Sentry Six, Aurora, Daylight, Flux,
+Horizon), with no password: that browser alone is shown it, on every page.
+It is a cookie (`demo_ui=<pack>`, HttpOnly, SameSite=Strict, Secure), set by
+`POST /demo/ui {"ui": "<pack>" | "original"}` or by the app's own
+`PUT /api/ui-packs/active` from a visitor; the demo makes the app's
+interface packs answer that pack for requests that carry it
+([`demo/uiSwap.js`](demo/uiSwap.js)). The interface chosen for everyone is
+never changed, so no visitor changes what the others see. A page name one
+interface does not have (Horizon's `#/dashboard`, Sentry Six's `#/overview`)
+becomes its own after a swap. The demo note and the watermark stay off each
+interface's bottom bar or dock and sidebar.
 
 ### The Viewer starts with the owner's car-data layout
 

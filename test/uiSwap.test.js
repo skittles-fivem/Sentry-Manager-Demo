@@ -9,33 +9,37 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { uiOf, runFor, wrapPacks, install, choose, cookieFor } = require('../demo/uiSwap');
+const { uiOf, runFor, wrapPacks, install, choose, chooseActive, cookieFor } = require('../demo/uiSwap');
 const { decide } = require('../demo/policy');
 
 const MANAGER = process.env.MANAGER_ROOT || path.resolve(__dirname, '..', '..', 'Sentry-Manager');
 const PACKS = path.join(MANAGER, 'server', 'uiPacks.js');
 const req = (cookie) => ({ headers: cookie ? { cookie } : {} });
 
-/** A built-in packs folder with a Horizon pack, and the app's createUiPacks shape around it. */
+/** A built-in packs folder with Horizon and Aurora packs, and the app's createUiPacks shape around it. */
 function fakePacks() {
   const builtinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'packs-'));
-  fs.mkdirSync(path.join(builtinDir, 'horizon', 'web'), { recursive: true });
-  fs.writeFileSync(path.join(builtinDir, 'horizon', 'web', 'index.html'), '<div id="app">horizon</div>');
+  for (const id of ['horizon', 'aurora']) {
+    fs.mkdirSync(path.join(builtinDir, id, 'web'), { recursive: true });
+    fs.writeFileSync(path.join(builtinDir, id, 'web', 'index.html'), `<div id="app">${id}</div>`);
+  }
   const db = new Map();
   const writes = [];
   const packs = {
-    list: () => [{ id: 'horizon', builtin: true }],
+    list: () => [{ id: 'horizon', builtin: true }, { id: 'aurora', builtin: true }, { id: 'mine', builtin: false }],
     active: () => db.get('ui-pack') ?? null,
     setActive: (id) => { writes.push(id); db.set('ui-pack', id); return id; },
-    root: (kind) => (db.get('ui-pack') === 'horizon' ? path.join(builtinDir, 'horizon', kind) : null)
+    root: (kind) => (db.get('ui-pack') ? path.join(builtinDir, db.get('ui-pack'), kind) : null)
   };
   return { packs, builtinDir, writes, db };
 }
 
-test('the cookie: demo_ui=horizon only; anything else, or none, is the original', () => {
+test('the cookie: a built-in pack only; anything else, or none, is the original', () => {
+  const { packs, builtinDir } = fakePacks();
+  wrapPacks(packs, { builtinDir });
   assert.equal(uiOf(req('demo_ui=horizon')), 'horizon');
-  assert.equal(uiOf(req('a=1; demo_ui=horizon; b=2')), 'horizon');
-  for (const c of [null, '', 'demo_ui=original', 'demo_ui=aurora', 'demo_ui=horizonx', 'xdemo_ui=horizon', 'demo_ui=../horizon']) assert.equal(uiOf(req(c)), null, String(c));
+  assert.equal(uiOf(req('a=1; demo_ui=aurora; b=2')), 'aurora');
+  for (const c of [null, '', 'demo_ui=original', 'demo_ui=mine', 'demo_ui=horizonx', 'xdemo_ui=horizon', 'demo_ui=../horizon', 'demo_ui=HORIZON']) assert.equal(uiOf(req(c)), null, String(c));
 });
 
 test('a browser with the cookie is served Horizon; without it, the original; the pack chosen for everyone never changes', async () => {
@@ -62,20 +66,30 @@ test('a browser with the cookie is served Horizon; without it, the original; the
   assert.equal(db.has('ui-pack'), false, 'the stored choice is untouched');
 });
 
-test('POST /demo/ui takes only "horizon" or "original"; the cookie is HttpOnly, SameSite=Strict, Secure on HTTPS', () => {
+test('POST /demo/ui and Settings take a built-in pack or "original"; the cookie is HttpOnly, SameSite=Strict, Secure on HTTPS; no password', () => {
+  const { packs, builtinDir, writes } = fakePacks();
+  wrapPacks(packs, { builtinDir });
   const on = choose({ ui: 'horizon' }, { secure: true });
   assert.equal(on.status, 200);
   assert.match(on.cookie, /^demo_ui=horizon; Path=\/; HttpOnly; SameSite=Strict; Secure; Max-Age=\d+$/);
+  assert.match(choose({ ui: 'aurora' }, { secure: true }).cookie, /^demo_ui=aurora;/);
   const off = choose({ ui: 'original' }, { secure: true });
   assert.match(off.cookie, /^demo_ui=; .*Max-Age=0$/);
   assert.ok(!cookieFor('horizon', false).includes('Secure'));
-  for (const body of [{ ui: 'aurora' }, { ui: 'HORIZON' }, { ui: '' }, { ui: ['horizon'] }, { ui: null }, {}, null, 'horizon', { ui: 'horizon ' }]) {
+  for (const body of [{ ui: 'mine' }, { ui: 'HORIZON' }, { ui: '' }, { ui: ['horizon'] }, { ui: null }, {}, null, 'horizon', { ui: 'horizon ' }, { ui: '../x' }]) {
     const r = choose(body, { secure: true });
     assert.equal(r.status, 400, JSON.stringify(body));
     assert.equal(r.cookie, undefined);
   }
-  // and the app's own switch for everyone stays refused
-  assert.equal(decide('PUT', '/api/ui-packs/active').status, 403);
+  // the app's own "Use this interface" (PUT /api/ui-packs/active {id}): this browser only
+  const a = chooseActive({ id: 'aurora' }, { secure: true });
+  assert.deepEqual(a.body, { ok: true, active: 'aurora' });
+  assert.match(a.cookie, /^demo_ui=aurora;/);
+  assert.match(chooseActive({ id: null }, { secure: true }).cookie, /Max-Age=0$/);
+  assert.equal(chooseActive({ id: 'mine' }, { secure: true }).status, 400);
+  assert.equal(chooseActive({ id: 5 }, { secure: true }).status, 400);
+  assert.deepEqual(writes, [], 'the interface for everyone is never changed');
+  // uploading a pack stays refused
   assert.equal(decide('POST', '/api/ui-packs/upload').status, 403);
 });
 

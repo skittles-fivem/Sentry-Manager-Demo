@@ -345,11 +345,11 @@ async function layerFirst(req, res, p, url) {
   if (await owner.handle(req, res, p, url)) return true;
   // plain HTTP: the app's own redirect to https:// (and Let's Encrypt's check)
   if (!(req.socket?.encrypted || req.httpVersionMajor === 2)) return false;
-  // this browser's interface: Horizon or the original (a cookie; never the app's choice for everyone)
+  // this browser's interface: a built-in one or the original (a cookie; never the app's choice for everyone)
   if (p === '/demo/ui') {
     if (req.method !== 'POST' || req.headers['x-requested-with'] !== 'sentry-six-manager') {
       req.resume();
-      sendLayer(res, req.method === 'POST' ? 403 : 405, { error: 'POST {"ui": "horizon" | "original"}' });
+      sendLayer(res, req.method === 'POST' ? 403 : 405, { error: 'POST {"ui": "<built-in interface>" | "original"}' });
       return true;
     }
     let body = null;
@@ -429,6 +429,14 @@ function gateInner(handler) {
     if (fake && !internalReq(req)) {
       const answered = await fakeAnswer(req, res, p, url);
       if (answered) return undefined;
+    }
+    // "Use this interface" in Settings: this browser only, no password (demo/uiSwap.js)
+    if (p === '/api/ui-packs/active' && req.method === 'PUT' && !internalReq(req)) {
+      let body = null;
+      try { body = await readJson(req, 1024); } catch { body = null; }
+      const out = uiSwap.chooseActive(body, { secure: true });
+      if (out.cookie) res.setHeader('Set-Cookie', out.cookie);
+      return json(res, out.status, out.body);
     }
     if (p.startsWith('/api/exports') || /^\/api\/vehicles\/[^/]+\/exports$/.test(p)) {
       if (!internalReq(req) && await fakeExports.answer(req, res, p, json)) return undefined;

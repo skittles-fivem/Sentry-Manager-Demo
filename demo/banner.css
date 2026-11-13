@@ -206,3 +206,7 @@
 @media (min-width: 761px) {
   .sentry-demo-sidebar .sentry-demo-note { left: calc(var(--sentry-demo-side, 0px) + 14px); }
 }
+/* a wide screen with a bar or dock along the bottom (Aurora): the note and the watermark above it */
+@media (min-width: 761px) {
+  .sentry-demo-bottombar .sentry-demo-note, .sentry-demo-bottombar .sentry-demo-wm:not(.in-card) { bottom: calc(var(--sentry-demo-bar, 80px) + 10px); }
+}

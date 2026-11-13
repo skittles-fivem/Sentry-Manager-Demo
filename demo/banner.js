@@ -11,9 +11,10 @@
   // Each interface names a few pages its own way (Horizon's home is #/dashboard,
   // Sentry Six's #/overview): a page name from the other one, after a swap or
   // from an old link, becomes this one's before the page draws, never "Page not found"
-  const SAME_PAGE = UI === 'horizon'
+  const RAW_UI = document.currentScript?.dataset.ui || 'original';
+  const SAME_PAGE = RAW_UI === 'horizon'
     ? { overview: 'dashboard', notifications: 'alerts', activity: 'jobs' }
-    : { dashboard: 'overview', alerts: 'notifications' };
+    : RAW_UI === 'original' ? { dashboard: 'overview', alerts: 'notifications' } : {};
   const samePage = () => {
     if (window.top !== window) return;
     const m = /^#\/?([\w-]+)(.*)$/.exec(location.hash);
@@ -174,6 +175,19 @@
     // an interface with no sidebar (Horizon): the pill on every screen
     pill.classList.toggle('free', !document.querySelector('.side-card'));
   };
+  // Settings > "Use this interface": this browser only, straight away, with no
+  // password (the app's page asks for one before it sends the change; the
+  // demo's server makes the change for this browser alone: demo/uiSwap.js)
+  document.addEventListener('click', (e) => {
+    const b = e.target?.closest?.('button[data-pack]');
+    if (!b || b.disabled) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    b.disabled = true;
+    fetch('/api/ui-packs/active', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'sentry-six-manager' }, body: JSON.stringify({ id: b.dataset.pack || null }) })
+      .then((r) => { if (r.ok) location.reload(); else b.disabled = false; })
+      .catch(() => { b.disabled = false; });
+  }, true);
   // No downloads on the demo: a link that saves a file (a download link, a
   // file made in the page, or one of the app's download addresses) only says
   // so. The server refuses them too (demo/preload.js: a response sent as a
@@ -258,25 +272,28 @@
   // the note sits just right of its sidebar
   function aboveBottomBar() {
     if (embedded || aboveBottomBar.on) return;
-    const bar = document.getElementById('phone-nav');
-    if (!bar) return;
+    const BARS = '#phone-nav, #dock, #tabbar'; // Sentry Six's phone bar, Aurora's dock, Daylight's phone tab bar
+    const SIDES = '#sidebar, aside.side, #side'; // Sentry Six's, Daylight's and Flux's sidebars
+    if (!document.querySelector(BARS) && !document.querySelector(SIDES)) return;
     aboveBottomBar.on = true;
     const root = document.documentElement;
-    const fit = () => {
-      const cs = getComputedStyle(bar);
-      const r = bar.getBoundingClientRect();
-      const shown = cs.display !== 'none' && cs.position === 'fixed' && r.height > 0;
-      root.classList.toggle('sentry-demo-bottombar', shown);
-      if (shown) root.style.setProperty('--sentry-demo-bar', `${Math.round(innerHeight - r.top)}px`);
-      // a wide screen: the note just right of the sidebar (#sidebar), off its links
-      const side = document.getElementById('sidebar');
-      const sr = side?.getBoundingClientRect();
-      const beside = Boolean(side && !shown && sr.width > 0 && sr.left <= 1 && getComputedStyle(side).display !== 'none');
-      root.classList.toggle('sentry-demo-sidebar', beside);
-      if (beside) root.style.setProperty('--sentry-demo-side', `${Math.round(sr.right)}px`);
+    const shownFixed = (n) => {
+      const cs = getComputedStyle(n);
+      const r = n.getBoundingClientRect();
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && (cs.position === 'fixed' || cs.position === 'sticky') && r.width > 0 && r.height > 0 && r.right > 0 && r.left < innerWidth;
     };
-    new ResizeObserver(fit).observe(bar);
+    const fit = () => {
+      const bar = [...document.querySelectorAll(BARS)].find((n) => shownFixed(n) && innerHeight - n.getBoundingClientRect().bottom < 60);
+      root.classList.toggle('sentry-demo-bottombar', Boolean(bar));
+      if (bar) root.style.setProperty('--sentry-demo-bar', `${Math.round(innerHeight - bar.getBoundingClientRect().top)}px`);
+      // a wide screen: the note just right of the sidebar, off its links
+      const side = [...document.querySelectorAll(SIDES)].find((n) => { const r = n.getBoundingClientRect(); return !bar && r.left <= 1 && r.right > 40 && r.height > innerHeight * 0.6 && getComputedStyle(n).display !== 'none'; });
+      root.classList.toggle('sentry-demo-sidebar', Boolean(side));
+      if (side) root.style.setProperty('--sentry-demo-side', `${Math.round(side.getBoundingClientRect().right)}px`);
+    };
+    for (const n of document.querySelectorAll(`${BARS}, ${SIDES}`)) new ResizeObserver(fit).observe(n);
     addEventListener('resize', fit);
+    setTimeout(fit, 1500);
     fit();
   }
   // the shell draws its sidebar after start: place the card once it is there
