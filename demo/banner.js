@@ -22,8 +22,10 @@
   };
   samePage();
   addEventListener('hashchange', samePage);
-  const swapButton = `<button type="button" class="sentry-demo-swap" data-ui="${UI === 'horizon' ? 'original' : 'horizon'}">${SWAP}</button>`;
+  const swapButton = `<button type="button" class="sentry-demo-swap" data-ui="${UI === 'horizon' ? 'original' : 'horizon'}" aria-label="${SWAP}"><span class="sentry-demo-swap-to">Swap to </span><span class="sentry-demo-swap-name">${SWAP.replace(/^Swap to /, '')}</span></button>`;
   const TEXT = '<b>Demo</b> · real highway drives · changes are turned off · visits are logged';
+  // the pill already starts with its own "Demo" tab: the rest without a leading dot
+  const PILL_TEXT = 'Real highway drives · changes are turned off · visits are logged';
   const LINK = 'https://github.com/skittles-fivem/Sentry-Manager';
 
   const card = document.createElement('div');
@@ -38,7 +40,7 @@
   pill.className = 'sentry-demo-note';
   pill.setAttribute('role', 'note');
   pill.innerHTML = '<button type="button" class="sentry-demo-tab" aria-expanded="true" aria-label="About this demo"><span class="sentry-demo-dot" aria-hidden="true"></span><b>Demo</b></button>'
-    + `<span class="sentry-demo-text">${TEXT}</span>`
+    + `<span class="sentry-demo-text">${PILL_TEXT}</span>`
     + swapButton
     + `<a class="sentry-demo-link" href="${LINK}" target="_blank" rel="noopener">Get it</a>`
     + '<a class="sentry-demo-feedback" href="/demo/feedback">Feedback</a>'

@@ -85,7 +85,8 @@
   font-weight: 700; padding: 4px 10px; border-radius: 999px;
 }
 .sentry-demo-close {
-  flex: none; width: 24px; height: 24px; border: 0; border-radius: 50%;
+  flex: none; width: 24px; height: 24px; border: 0; border-radius: 50%; padding: 0; align-self: center;
+  display: inline-flex; align-items: center; justify-content: center;
   background: transparent; color: #aeb7c6; font-size: 17px; line-height: 1; cursor: pointer;
 }
 .sentry-demo-close:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
@@ -119,8 +120,13 @@
 }
 /* a narrow phone: the pill's buttons go onto two lines rather than past the edge */
 @media (max-width: 440px) {
-  .sentry-demo-note:not(.folded) { flex-wrap: wrap; border-radius: 18px; row-gap: 4px; padding: 6px 8px; }
+  .sentry-demo-note:not(.folded) { flex-wrap: nowrap; gap: 4px; border-radius: 999px; padding: 4px 4px 4px 2px; font-size: 12px; }
   .sentry-demo-note:not(.folded) .sentry-demo-text { display: none; }
+  .sentry-demo-note:not(.folded) .sentry-demo-tab { padding: 3px 4px; gap: 4px; }
+  .sentry-demo-note:not(.folded) .sentry-demo-swap { padding: 4px 8px; font-size: 11.5px; }
+  .sentry-demo-note:not(.folded) .sentry-demo-link { padding: 3px 8px; }
+  .sentry-demo-note:not(.folded) .sentry-demo-feedback { padding: 3px 2px; }
+  .sentry-demo-note:not(.folded) .sentry-demo-close { width: 22px; height: 22px; }
 }
 
 /* Feedback as a pop-up over the page */
@@ -209,4 +215,10 @@
 /* a wide screen with a bar or dock along the bottom (Aurora): the note and the watermark above it */
 @media (min-width: 761px) {
   .sentry-demo-bottombar .sentry-demo-note, .sentry-demo-bottombar .sentry-demo-wm:not(.in-card) { bottom: calc(var(--sentry-demo-bar, 80px) + 10px); }
+}
+/* the narrowest phones: the Swap button says just which interface */
+@media (max-width: 360px) {
+  .sentry-demo-note:not(.folded) .sentry-demo-swap-to { display: none; }
+  .sentry-demo-note:not(.folded) .sentry-demo-swap-name { display: inline-block; }
+  .sentry-demo-note:not(.folded) .sentry-demo-swap-name::first-letter { text-transform: uppercase; }
 }
