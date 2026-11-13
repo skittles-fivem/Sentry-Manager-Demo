@@ -1,0 +1,52 @@
+name: Follow the manager
+
+# Every hour: when the published manager image (ghcr.io/skittles-fivem/sentry-manager:latest)
+# is newer than the one the demo image was built on, start the demo image build
+# (image.yml), so a manager update reaches the demo within about an hour
+# instead of at the nightly build. Nothing happens when they match.
+# Both images carry the manager's git revision in their
+# org.opencontainers.image.revision label (the demo image inherits it).
+
+on:
+  schedule:
+    - cron: '41 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Compare the manager image with the demo's
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rev() {
+            local repo=$1 t m d c
+            t=$(curl -fsS "https://ghcr.io/token?scope=repository:$repo:pull" | jq -r .token)
+            m=$(curl -fsS -H "Authorization: Bearer $t" \
+              -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+              "https://ghcr.io/v2/$repo/manifests/latest")
+            if echo "$m" | jq -e '.manifests' >/dev/null; then
+              d=$(echo "$m" | jq -r '[.manifests[] | select(.platform.architecture == "amd64")][0].digest')
+              m=$(curl -fsS -H "Authorization: Bearer $t" \
+                -H 'Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+                "https://ghcr.io/v2/$repo/manifests/$d")
+            fi
+            c=$(echo "$m" | jq -r .config.digest)
+            curl -fsSL -H "Authorization: Bearer $t" "https://ghcr.io/v2/$repo/blobs/$c" | jq -r '.config.Labels["org.opencontainers.image.revision"] // empty'
+          }
+          manager=$(rev skittles-fivem/sentry-manager)
+          demo=$(rev skittles-fivem/sentry-manager-demo || true)
+          echo "manager image: ${manager:-?}  demo built on: ${demo:-?}"
+          if [ -z "$manager" ]; then echo "Could not read the manager image's revision"; exit 0; fi
+          if [ "$manager" = "$demo" ]; then echo "The demo is on the newest manager"; exit 0; fi
+          # a demo build already queued or running gets the newest manager anyway
+          busy=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow image.yml --limit 5 --json status --jq '[.[] | select(.status != "completed")] | length')
+          if [ "$busy" != "0" ]; then echo "A demo build is already running"; exit 0; fi
+          gh workflow run image.yml --repo "$GITHUB_REPOSITORY" --ref main
+          echo "Started the demo build for manager ${manager:0:7}" >> "$GITHUB_STEP_SUMMARY"

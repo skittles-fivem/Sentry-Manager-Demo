@@ -1,8 +1,8 @@
 name: Demo image
 
 # Builds ghcr.io/skittles-fivem/sentry-manager-demo on top of the newest
-# Sentry Six Manager image: on every push to main, every night (so the demo
-# follows the manager's releases), and by hand.
+# Sentry Six Manager image: on every push to main, every night, by hand, and
+# within the hour of a new manager image (follow-manager.yml starts it).
 #
 # The demo drives come from the "seed" release's seed.tar (made with
 # tools/sanitize.js and uploaded by hand: README, "Updating the drives").
